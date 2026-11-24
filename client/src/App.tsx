@@ -151,9 +151,13 @@ function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ConsoleLayout user={user} onLogout={() => setUser(null)}>
+            user?.role === 'admin' ? (
+              <ConsoleLayout user={user} onLogout={() => setUser(null)}>
+                <AdminPage user={user} onAuthSuccess={(u) => setUser(u)} />
+              </ConsoleLayout>
+            ) : (
               <AdminPage user={user} onAuthSuccess={(u) => setUser(u)} />
-            </ConsoleLayout>
+            )
           }
         />
         <Route

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AdminTransactionItem,
   apiRequest,
@@ -93,14 +94,47 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
 
   if (!isAdmin) {
     return (
-      <div style={{ maxWidth: '460px', margin: '2.5rem auto' }}>
-        <div className="panel">
-          <h1 className="page-title" style={{ marginBottom: '0.4rem' }}>
-            Admin Portal Sign In
-          </h1>
-          <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-            Sign in with your Lendsqr administrator credentials to view customers,
-            transactions, and compliance controls.
+      <div className="auth-wrapper">
+        <aside className="auth-aside">
+          <div className="logo">
+            <span className="logo-mark" />
+            <span>lendsqr</span>
+          </div>
+
+          <div className="auth-hero-box">
+            <h2>Back-Office Administration & Compliance Console.</h2>
+            <p>
+              Monitor customer wallets, audit platform transactions in real time, freeze
+              or restore accounts, and manage blacklisted identities.
+            </p>
+            <div className="feature-pills">
+              <div className="feature-pill">
+                <span className="feature-dot" />
+                <span>Customer directory with instant account block & unblock controls</span>
+              </div>
+              <div className="feature-pill">
+                <span className="feature-dot" />
+                <span>Read-only audit ledger of all platform deposits & transfers</span>
+              </div>
+              <div className="feature-pill">
+                <span className="feature-dot" />
+                <span>Real-time blacklist management integrated with Adjutor Karma</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)' }}>
+            &copy; {new Date().getFullYear()} Lendsqr Back-Office Console
+          </div>
+        </aside>
+
+        <main className="auth-main">
+          <div style={{ marginBottom: '0.75rem' }}>
+            <span className="badge badge-pending">Administrator Access</span>
+          </div>
+          <h1 className="auth-title">Admin Sign In</h1>
+          <p className="auth-subtitle">
+            Enter your Lendsqr administrator credentials to access the console.
           </p>
 
           <form onSubmit={handleAdminLogin}>
@@ -130,12 +164,20 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
             <button
               type="submit"
               className="btn btn-teal btn-block"
+              style={{ marginTop: '0.5rem' }}
               disabled={authLoading}
             >
-              {authLoading ? 'Signing in...' : 'Sign In'}
+              {authLoading ? 'Signing in...' : 'Sign In to Admin Console'}
             </button>
           </form>
-        </div>
+
+          <p style={{ marginTop: '1.5rem', fontSize: '0.92rem' }}>
+            Looking for the customer wallet portal?{' '}
+            <Link to="/login" style={{ fontWeight: 600 }}>
+              Customer Sign In &rarr;
+            </Link>
+          </p>
+        </main>
       </div>
     );
   }
