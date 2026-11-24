@@ -176,7 +176,7 @@ export class WalletsService {
 
     const verification = await this.paystack.verifyTransaction(reference);
 
-    if (verification.status !== 'success') {
+    if (verification.status === 'failed' || verification.status === 'reversed') {
       await this.db<TransactionRecord>('transactions')
         .where('id', existingTx.id)
         .andWhere('status', 'pending')
@@ -190,6 +190,19 @@ export class WalletsService {
         `Payment verification failed: Paystack status is '${verification.status}'`,
         'PAYMENT_VERIFICATION_FAILED',
       );
+    }
+
+    // If the user is still on the checkout page ('ongoing') or closed it ('abandoned'),
+    // keep the transaction pending without moving any money.
+    if (verification.status !== 'success') {
+      return {
+        mode: 'paystack',
+        status: 'pending',
+        reference: existingTx.reference,
+        amountKobo: toKoboInt(existingTx.amount),
+        amountFormatted: formatKoboToNaira(existingTx.amount),
+        narration: existingTx.narration || 'Wallet funding deposit',
+      };
     }
 
     return this.settleFundingTransaction(

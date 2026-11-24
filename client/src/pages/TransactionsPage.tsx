@@ -84,55 +84,42 @@ export function TransactionsPage({ liveTick = 0 }: { liveTick?: number }) {
         ) : items.length === 0 ? (
           <p>No transactions found.</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Reference</th>
-                  <th>Type</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((tx) => (
-                  <tr key={tx.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
+          <div className="tx-card-list">
+            {items.map((tx) => (
+              <div
+                key={tx.id}
+                className="tx-card-item"
+                onClick={() => void handleViewReceipt(tx.reference)}
+              >
+                <div className="tx-card-left">
+                  <div className={`tx-icon-circle tx-icon-${tx.direction}`}>
+                    {tx.direction === 'outbound' ? '↗' : '↙'}
+                  </div>
+                  <div className="tx-card-info">
+                    <div className="tx-card-title">
                       {tx.narration || (tx.type === 'funding' ? 'Wallet Deposit' : 'Transfer')}
-                    </td>
-                    <td className="mono">{tx.reference}</td>
-                    <td style={{ textTransform: 'capitalize' }}>
+                    </div>
+                    <div className="tx-card-sub">
+                      {new Date(tx.createdAt).toLocaleString()} &middot;{' '}
                       {tx.type === 'funding' ? 'Deposit' : 'Transfer'}
-                    </td>
-                    <td
-                      style={{
-                        fontWeight: 700,
-                        color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
-                      }}
-                    >
-                      {tx.direction === 'outbound' ? '-' : '+'}
-                      {tx.amountFormatted}
-                    </td>
-                    <td>
-                      <span className={`badge badge-${tx.status}`}>{tx.status}</span>
-                    </td>
-                    <td>{new Date(tx.createdAt).toLocaleString()}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => void handleViewReceipt(tx.reference)}
-                      >
-                        View Receipt
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="tx-card-right">
+                  <div
+                    className="tx-card-amount"
+                    style={{
+                      color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
+                    }}
+                  >
+                    {tx.direction === 'outbound' ? '-' : '+'}
+                    {tx.amountFormatted}
+                  </div>
+                  <span className={`badge badge-${tx.status}`}>{tx.status}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

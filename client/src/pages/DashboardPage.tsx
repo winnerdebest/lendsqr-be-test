@@ -51,9 +51,23 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
       setFunding(true);
     }
     try {
-      const res = await apiRequest<{ reference: string; amountFormatted: string }>(
-        `/v1/wallets/fund/verify/${encodeURIComponent(ref.trim())}`,
-      );
+      const res = await apiRequest<{
+        status: 'pending' | 'successful';
+        reference: string;
+        amountFormatted: string;
+      }>(`/v1/wallets/fund/verify/${encodeURIComponent(ref.trim())}`);
+
+      if (res.data.status !== 'successful') {
+        if (!silent) {
+          showToast(
+            'Payment Still Pending',
+            'Paystack has not confirmed this payment yet. Complete checkout or cancel below.',
+            'info',
+          );
+        }
+        return false;
+      }
+
       setSuccessMsg(
         `Deposit of ${res.data.amountFormatted} confirmed and added to your balance!`,
       );
@@ -342,6 +356,17 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
                 >
                   Confirm Deposit
                 </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => {
+                    setPendingPaystackUrl(null);
+                    setVerifyingRef('');
+                    setSuccessMsg(null);
+                  }}
+                >
+                  Cancel Checkout
+                </button>
               </>
             )}
           </div>
@@ -361,41 +386,36 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
             No transactions yet. Add money to your wallet above to get started.
           </p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Reference</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTxs.map((tx) => (
-                  <tr key={tx.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
+          <div className="tx-card-list">
+            {recentTxs.map((tx) => (
+              <div key={tx.id} className="tx-card-item">
+                <div className="tx-card-left">
+                  <div className={`tx-icon-circle tx-icon-${tx.direction}`}>
+                    {tx.direction === 'outbound' ? '↗' : '↙'}
+                  </div>
+                  <div className="tx-card-info">
+                    <div className="tx-card-title">
                       {tx.narration || (tx.type === 'funding' ? 'Wallet Deposit' : 'Transfer')}
-                    </td>
-                    <td className="mono">{tx.reference}</td>
-                    <td
-                      style={{
-                        fontWeight: 700,
-                        color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
-                      }}
-                    >
-                      {tx.direction === 'outbound' ? '-' : '+'}
-                      {tx.amountFormatted}
-                    </td>
-                    <td>
-                      <span className={`badge badge-${tx.status}`}>{tx.status}</span>
-                    </td>
-                    <td>{new Date(tx.createdAt).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <div className="tx-card-sub">
+                      {new Date(tx.createdAt).toLocaleString()} &middot; {tx.reference}
+                    </div>
+                  </div>
+                </div>
+                <div className="tx-card-right">
+                  <div
+                    className="tx-card-amount"
+                    style={{
+                      color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
+                    }}
+                  >
+                    {tx.direction === 'outbound' ? '-' : '+'}
+                    {tx.amountFormatted}
+                  </div>
+                  <span className={`badge badge-${tx.status}`}>{tx.status}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

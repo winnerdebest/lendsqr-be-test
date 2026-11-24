@@ -795,6 +795,94 @@ th {
   color: var(--navy);
 }
 
+/* Responsive Transaction List (No Horizontal Scroll on Mobile) */
+.tx-card-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tx-card-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tx-card-item:last-child {
+  border-bottom: none;
+}
+
+.tx-card-item:hover {
+  background: rgba(57, 205, 204, 0.05);
+}
+
+.tx-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.tx-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tx-icon-inbound {
+  background: rgba(57, 205, 98, 0.13);
+  color: #188234;
+}
+
+.tx-icon-outbound {
+  background: rgba(33, 63, 125, 0.09);
+  color: var(--navy);
+}
+
+.tx-card-info {
+  min-width: 0;
+}
+
+.tx-card-title {
+  font-weight: 600;
+  color: var(--navy);
+  font-size: 0.94rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-card-sub {
+  font-size: 0.78rem;
+  color: var(--slate);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-card-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tx-card-amount {
+  font-weight: 700;
+  font-size: 0.98rem;
+  margin-bottom: 0.2rem;
+}
+
 /* Recipient Name Inquiry Pill */
 .recipient-lookup-card {
   margin-top: 0.55rem;
