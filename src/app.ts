@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './common/middleware/errorHandler';
 import { sendSuccess } from './common/utils/response';
-import { env } from './config/env';
+import { APP_CONSTANTS, env } from './config/env';
 import { checkDbHealth } from './db/knex';
 import { renderLandingPageHtml, renderSwaggerDocsHtml } from './docs/landing';
 import { openApiSpec } from './docs/openapi';
@@ -68,7 +68,7 @@ export function createApp(): Express {
     sendSuccess(
       res,
       {
-        service: env.SERVICE_NAME,
+        service: APP_CONSTANTS.SERVICE_NAME,
         version: '1.0.0',
         environment: env.NODE_ENV,
         docsUrl: '/docs',
@@ -87,7 +87,7 @@ export function createApp(): Express {
     sendSuccess(
       res,
       {
-        service: env.SERVICE_NAME,
+        service: APP_CONSTANTS.SERVICE_NAME,
         status: dbHealth.connected ? 'healthy' : 'degraded',
         uptimeSeconds: Math.floor(process.uptime()),
         timestamp: new Date().toISOString(),

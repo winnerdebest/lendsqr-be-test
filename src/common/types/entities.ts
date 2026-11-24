@@ -76,12 +76,3 @@ export interface BlacklistRecord {
   source: BlacklistSource;
   created_at: Date;
 }
-
-export interface UserStatusEventRecord {
-  id: string;
-  user_id: string;
-  action: 'blocked' | 'unblocked';
-  reason: string;
-  actor: string;
-  created_at: Date;
-}

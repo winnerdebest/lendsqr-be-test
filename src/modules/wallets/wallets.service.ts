@@ -8,7 +8,6 @@ import {
   WalletRecord,
 } from '../../common/types/entities';
 import { formatKoboToNaira, generateReference, toKoboInt } from '../../common/utils/money';
-import { walletLockManager } from '../../common/utils/lockManager';
 import { getDb } from '../../db/knex';
 import { PaystackClient, paystackClient } from './paystack.client';
 import { FundWalletInput } from './wallets.schemas';
@@ -83,12 +82,8 @@ export class WalletsService {
   }
 
   /**
-   * Initializes or executes wallet funding:
-   * - If `mode === 'paystack'` (or `mode === 'auto'` when `PAYSTACK_SECRET_KEY` is configured),
-   *   creates a `pending` funding transaction and calls Paystack `/transaction/initialize`.
-   * - If `mode === 'simulated'` (or `mode === 'auto'` when `PAYSTACK_SECRET_KEY` is not set),
-   *   atomically credits the wallet inside a `SELECT ... FOR UPDATE` transaction and writes
-   *   the double-entry credit ledger record immediately.
+   * Initializes Paystack funding (when Paystack is configured or requested)
+   * or credits the wallet immediately in simulated mode.
    */
   public async fundWallet(userId: string, input: FundWalletInput): Promise<FundingResultDTO> {
     const user = await this.db<UserRecord>('users').where('id', userId).first();
@@ -110,43 +105,35 @@ export class WalletsService {
 
     const usePaystack =
       input.mode === 'paystack' || (input.mode === 'auto' && this.paystack.isConfigured());
-
     const reference = generateReference('LSQ-FND');
     const narration = input.narration || 'Wallet funding deposit';
+    const now = new Date();
+
+    // Always create a pending funding transaction first
+    await this.db<TransactionRecord>('transactions').insert({
+      id: crypto.randomUUID(),
+      reference,
+      provider_reference: usePaystack ? reference : `SIM-${reference}`,
+      type: 'funding',
+      status: 'pending',
+      source_wallet_id: null,
+      destination_wallet_id: wallet.id,
+      amount: input.amountKobo,
+      currency: 'NGN',
+      narration,
+      failure_reason: null,
+      metadata: { provider: usePaystack ? 'paystack' : 'simulated', userId },
+      created_at: now,
+      updated_at: now,
+    });
 
     if (usePaystack) {
-      // 1. Insert pending transaction first (outside external HTTP lock)
-      const now = new Date();
-      const pendingTx: TransactionRecord = {
-        id: crypto.randomUUID(),
-        reference,
-        provider_reference: reference,
-        type: 'funding',
-        status: 'pending',
-        source_wallet_id: null,
-        destination_wallet_id: wallet.id,
-        amount: input.amountKobo,
-        currency: 'NGN',
-        narration,
-        failure_reason: null,
-        metadata: { provider: 'paystack', userId },
-        created_at: now,
-        updated_at: now,
-      };
-
-      await this.db<TransactionRecord>('transactions').insert(pendingTx);
-
-      // 2. Call Paystack API outside any DB lock
       const paystackInit = await this.paystack.initializeTransaction({
         email: user.email,
         amountKobo: input.amountKobo,
         reference,
         callbackUrl: input.callbackUrl,
-        metadata: {
-          userId: user.id,
-          walletId: wallet.id,
-          accountNumber: wallet.account_number,
-        },
+        metadata: { userId: user.id, walletId: wallet.id },
       });
 
       return {
@@ -161,20 +148,12 @@ export class WalletsService {
       };
     }
 
-    // Simulated / Instant Funding Mode (atomic row lock + ledger entry)
-    return this.executeImmediateFundingCredit({
-      walletId: wallet.id,
-      reference,
-      providerReference: `SIM-${reference}`,
-      amountKobo: input.amountKobo,
-      narration,
-      metadata: { provider: 'simulated', userId },
-    });
+    // Simulated mode settles the pending transaction immediately via the same atomic credit method
+    return this.settleFundingTransaction(reference, input.amountKobo, 'simulated');
   }
 
   /**
    * Verifies a Paystack transaction by reference and idempotently credits the wallet.
-   * Safe to call multiple times or concurrently with the Paystack webhook.
    */
   public async verifyPaystackFunding(reference: string): Promise<FundingResultDTO> {
     const existingTx = await this.db<TransactionRecord>('transactions')
@@ -182,56 +161,18 @@ export class WalletsService {
       .orWhere('provider_reference', reference)
       .first();
 
-    if (!existingTx) {
+    if (!existingTx || existingTx.type !== 'funding' || !existingTx.destination_wallet_id) {
       throw AppError.notFound(`Funding transaction '${reference}' not found`);
     }
 
-    if (existingTx.type !== 'funding' || !existingTx.destination_wallet_id) {
-      throw AppError.unprocessable(
-        `Transaction '${reference}' is not a valid funding transaction`,
-        'PAYMENT_VERIFICATION_FAILED',
+    if (existingTx.status === 'successful') {
+      return this.settleFundingTransaction(
+        existingTx.reference,
+        toKoboInt(existingTx.amount),
+        'paystack',
       );
     }
 
-    // If already credited (e.g. via webhook), return idempotent success
-    if (existingTx.status === 'successful') {
-      const wallet = await this.db<WalletRecord>('wallets')
-        .where('id', existingTx.destination_wallet_id)
-        .first();
-      const ledgerEntry = await this.db<LedgerEntryRecord>('ledger_entries')
-        .where('transaction_id', existingTx.id)
-        .first();
-
-      const amountKobo = toKoboInt(existingTx.amount);
-      const balanceAfterKobo = ledgerEntry
-        ? toKoboInt(ledgerEntry.balance_after)
-        : wallet
-          ? toKoboInt(wallet.balance)
-          : amountKobo;
-      const balanceBeforeKobo = ledgerEntry
-        ? toKoboInt(ledgerEntry.balance_before)
-        : balanceAfterKobo - amountKobo;
-
-      return {
-        mode: 'paystack',
-        status: 'successful',
-        reference: existingTx.reference,
-        amountKobo,
-        amountFormatted: formatKoboToNaira(amountKobo),
-        narration: existingTx.narration || 'Wallet funding deposit',
-        wallet: wallet
-          ? {
-              id: wallet.id,
-              accountNumber: wallet.account_number,
-              balanceBeforeKobo,
-              balanceAfterKobo,
-              balanceFormatted: formatKoboToNaira(balanceAfterKobo),
-            }
-          : undefined,
-      };
-    }
-
-    // Verify with Paystack API outside DB transaction lock
     const verification = await this.paystack.verifyTransaction(reference);
 
     if (verification.status !== 'success') {
@@ -250,13 +191,11 @@ export class WalletsService {
       );
     }
 
-    return this.settlePendingPaystackTransaction(
+    return this.settleFundingTransaction(
       existingTx.reference,
       verification.amountKobo,
-      {
-        channel: verification.channel,
-        paidAt: verification.paidAt,
-      },
+      'paystack',
+      { channel: verification.channel, paidAt: verification.paidAt },
     );
   }
 
@@ -286,8 +225,6 @@ export class WalletsService {
     }
 
     const reference = payload.data.reference;
-    const amountKobo = Number(payload.data.amount || 0);
-
     const tx = await this.db<TransactionRecord>('transactions')
       .where('reference', reference)
       .orWhere('provider_reference', reference)
@@ -297,37 +234,38 @@ export class WalletsService {
       return { processed: false, reference };
     }
 
-    if (tx.status === 'successful') {
-      return { processed: true, reference: tx.reference };
-    }
-
-    await this.settlePendingPaystackTransaction(tx.reference, amountKobo, {
-      webhookEvent: payload.event,
-      channel: payload.data.channel,
-      paidAt: payload.data.paid_at,
-    });
+    await this.settleFundingTransaction(
+      tx.reference,
+      Number(payload.data.amount || 0),
+      'paystack',
+      {
+        webhookEvent: payload.event,
+        channel: payload.data.channel,
+        paidAt: payload.data.paid_at,
+      },
+    );
 
     return { processed: true, reference: tx.reference };
   }
 
   /**
-   * Atomically locks the pending funding transaction + destination wallet `FOR UPDATE`,
-   * ensures it has not already been settled, updates the balance, and records the credit ledger entry.
+   * Single atomic settlement method used by simulated funding, Paystack verify, and Paystack webhooks.
+   * Locks both the transaction row and wallet row with `SELECT ... FOR UPDATE` so a reference can never be credited twice.
    */
-  public async settlePendingPaystackTransaction(
+  private async settleFundingTransaction(
     reference: string,
     verifiedAmountKobo: number,
+    mode: 'paystack' | 'simulated',
     extraMetadata: Record<string, unknown> = {},
   ): Promise<FundingResultDTO> {
-    return walletLockManager.withLocks([`funding:${reference}`], async () =>
-      this.db.transaction(async (trx) => {
+    return this.db.transaction(async (trx) => {
       const tx = await trx<TransactionRecord>('transactions')
         .where('reference', reference)
         .forUpdate()
         .first();
 
       if (!tx || !tx.destination_wallet_id) {
-        throw AppError.notFound(`Pending funding transaction '${reference}' not found`);
+        throw AppError.notFound(`Funding transaction '${reference}' not found`);
       }
 
       const wallet = await trx<WalletRecord>('wallets')
@@ -339,12 +277,12 @@ export class WalletsService {
         throw AppError.notFound('Destination wallet not found');
       }
 
-      // Double-credit guard: if another concurrent webhook/verify call already settled it
+      // Already credited -> return idempotently without modifying balance
       if (tx.status === 'successful') {
         const currentBalance = toKoboInt(wallet.balance);
         const amount = toKoboInt(tx.amount);
         return {
-          mode: 'paystack',
+          mode,
           status: 'successful',
           reference: tx.reference,
           amountKobo: amount,
@@ -379,7 +317,7 @@ export class WalletsService {
           updated_at: now,
         });
 
-      const ledgerEntry: LedgerEntryRecord = {
+      await trx<LedgerEntryRecord>('ledger_entries').insert({
         id: crypto.randomUUID(),
         transaction_id: tx.id,
         wallet_id: wallet.id,
@@ -388,12 +326,10 @@ export class WalletsService {
         balance_before: balanceBefore,
         balance_after: balanceAfter,
         created_at: now,
-      };
-
-      await trx<LedgerEntryRecord>('ledger_entries').insert(ledgerEntry);
+      });
 
       return {
-        mode: 'paystack',
+        mode,
         status: 'successful',
         reference: tx.reference,
         amountKobo: creditAmount,
@@ -407,88 +343,7 @@ export class WalletsService {
           balanceFormatted: formatKoboToNaira(balanceAfter),
         },
       };
-    }),
-    );
-  }
-
-  private async executeImmediateFundingCredit(params: {
-    walletId: string;
-    reference: string;
-    providerReference: string;
-    amountKobo: number;
-    narration: string;
-    metadata: Record<string, unknown>;
-  }): Promise<FundingResultDTO> {
-    return walletLockManager.withLocks([`wallet:${params.walletId}`], async () =>
-      this.db.transaction(async (trx) => {
-      const lockedWallet = await trx<WalletRecord>('wallets')
-        .where('id', params.walletId)
-        .forUpdate()
-        .first();
-
-      if (!lockedWallet) {
-        throw AppError.notFound('Wallet not found');
-      }
-
-      const balanceBefore = toKoboInt(lockedWallet.balance);
-      const balanceAfter = balanceBefore + params.amountKobo;
-      const now = new Date();
-      const txId = crypto.randomUUID();
-
-      await trx<WalletRecord>('wallets').where('id', lockedWallet.id).update({
-        balance: balanceAfter,
-        updated_at: now,
-      });
-
-      const txRecord: TransactionRecord = {
-        id: txId,
-        reference: params.reference,
-        provider_reference: params.providerReference,
-        type: 'funding',
-        status: 'successful',
-        source_wallet_id: null,
-        destination_wallet_id: lockedWallet.id,
-        amount: params.amountKobo,
-        currency: 'NGN',
-        narration: params.narration,
-        failure_reason: null,
-        metadata: params.metadata,
-        created_at: now,
-        updated_at: now,
-      };
-
-      await trx<TransactionRecord>('transactions').insert(txRecord);
-
-      const ledgerEntry: LedgerEntryRecord = {
-        id: crypto.randomUUID(),
-        transaction_id: txId,
-        wallet_id: lockedWallet.id,
-        direction: 'credit',
-        amount: params.amountKobo,
-        balance_before: balanceBefore,
-        balance_after: balanceAfter,
-        created_at: now,
-      };
-
-      await trx<LedgerEntryRecord>('ledger_entries').insert(ledgerEntry);
-
-      return {
-        mode: 'simulated',
-        status: 'successful',
-        reference: params.reference,
-        amountKobo: params.amountKobo,
-        amountFormatted: formatKoboToNaira(params.amountKobo),
-        narration: params.narration,
-        wallet: {
-          id: lockedWallet.id,
-          accountNumber: lockedWallet.account_number,
-          balanceBeforeKobo: balanceBefore,
-          balanceAfterKobo: balanceAfter,
-          balanceFormatted: formatKoboToNaira(balanceAfter),
-        },
-      };
-    }),
-    );
+    });
   }
 }
 

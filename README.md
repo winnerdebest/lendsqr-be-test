@@ -43,7 +43,6 @@ erDiagram
     WALLETS ||--o{ LEDGER_ENTRIES : records
     TRANSACTIONS ||--|{ LEDGER_ENTRIES : produces
     USERS ||--o{ IDEMPOTENCY_KEYS : scopes
-    USERS ||--o{ USER_STATUS_EVENTS : audited_by
 
     USERS {
         uuid id PK
@@ -109,14 +108,6 @@ erDiagram
         string identity UK
         string reason
         string source
-        datetime created_at
-    }
-    USER_STATUS_EVENTS {
-        uuid id PK
-        uuid user_id FK
-        string action
-        string reason
-        string actor
         datetime created_at
     }
 ```

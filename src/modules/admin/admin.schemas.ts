@@ -2,11 +2,10 @@ import { z } from 'zod';
 
 export const userStatusActionSchema = z.object({
   reason: z
-    .string({ required_error: 'Reason is required for audit trail' })
+    .string({ required_error: 'Reason is required' })
     .trim()
     .min(3, 'Reason must be at least 3 characters')
     .max(500),
-  actor: z.string().trim().min(2).max(100).optional().default('admin'),
 });
 
 export const addBlacklistSchema = z.object({

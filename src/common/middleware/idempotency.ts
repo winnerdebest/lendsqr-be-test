@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
-import { env } from '../../config/env';
+import { APP_CONSTANTS } from '../../config/env';
 import { getDb } from '../../db/knex';
 import { AppError } from '../errors/AppError';
 import { IdempotencyKeyRecord } from '../types/entities';
@@ -37,11 +37,6 @@ function parseStoredBody(raw: unknown): Record<string, unknown> | null {
 
 /**
  * Middleware that enforces Idempotency-Key protection on money-moving endpoints.
- * - Rejects missing Idempotency-Key header (400 IDEMPOTENCY_KEY_REQUIRED)
- * - Returns cached response with `X-Idempotent-Replay: true` if completed with same payload hash
- * - Returns 422 IDEMPOTENCY_KEY_REUSED if same key is sent with a different request payload
- * - Returns 409 REQUEST_IN_PROGRESS if a concurrent request with the same key is currently executing
- * - Awaits persistence of the idempotency record before sending the HTTP response to avoid race conditions
  */
 export function requireIdempotency(req: Request, res: Response, next: NextFunction): void {
   const run = async (): Promise<void> => {
@@ -71,9 +66,11 @@ export function requireIdempotency(req: Request, res: Response, next: NextFuncti
     const requestHash = computeRequestHash(req.method, `${req.baseUrl}${req.path}`, req.body);
     const db = getDb();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + env.IDEMPOTENCY_TTL_HOURS * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      now.getTime() + APP_CONSTANTS.IDEMPOTENCY_TTL_HOURS * 60 * 60 * 1000,
+    );
 
-    // 1. Delete any expired key with the same (user_id, key) first
+    // 1. Delete any expired key with the same (user_id, key)
     await db<IdempotencyKeyRecord>('idempotency_keys')
       .where({ user_id: userId, key })
       .andWhere('expires_at', '<', now)
@@ -99,14 +96,13 @@ export function requireIdempotency(req: Request, res: Response, next: NextFuncti
         );
       }
 
-      // Replay stored response
       const storedBody = parseStoredBody(existing.response_body);
       res.setHeader('X-Idempotent-Replay', 'true');
       res.status(existing.response_status || 200).json(storedBody);
       return;
     }
 
-    // 3. Attempt to claim the key atomically via unique constraint on (user_id, key)
+    // 3. Claim key atomically via unique constraint on (user_id, key)
     const recordId = crypto.randomUUID();
     try {
       await db<IdempotencyKeyRecord>('idempotency_keys').insert({
@@ -122,7 +118,6 @@ export function requireIdempotency(req: Request, res: Response, next: NextFuncti
         expires_at: expiresAt,
       });
     } catch (insertError) {
-      // Concurrent race on unique (user_id, key)
       const raced = await db<IdempotencyKeyRecord>('idempotency_keys')
         .where({ user_id: userId, key })
         .first();
@@ -148,7 +143,7 @@ export function requireIdempotency(req: Request, res: Response, next: NextFuncti
       throw insertError;
     }
 
-    // 4. Intercept res.json() and persist idempotency state BEFORE flushing the HTTP response
+    // 4. Persist response before flushing HTTP reply
     const originalJson = res.json.bind(res);
     let finalized = false;
 

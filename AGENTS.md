@@ -64,7 +64,6 @@ All visual surfaces (`/` landing page and `/docs` Swagger UI theme) use Lendsqr'
    - `ledger_entries`: `id` (UUID PK), `transaction_id` (FK), `wallet_id` (FK), `direction` (`debit` | `credit`), `amount` (`BIGINT > 0`), `balance_before`, `balance_after`, `created_at`.
    - `idempotency_keys`: `id` (UUID PK), `user_id` (FK), `key` (VARCHAR), `endpoint` (VARCHAR), `request_hash` (VARCHAR), `state` (`in_progress` | `completed`), `response_status` (INT), `response_body` (JSONB), `created_at`, `expires_at`. Unique constraint on `(user_id, key)`.
    - `blacklist`: `id` (UUID PK), `identity` (UK — email or phone), `reason`, `source` (`local` | `karma`), `created_at`.
-   - `user_status_events`: `id` (UUID PK), `user_id` (FK), `action` (`blocked` | `unblocked`), `reason`, `actor`, `created_at`.
 
 ---
 

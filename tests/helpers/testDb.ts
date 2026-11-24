@@ -7,12 +7,36 @@ let activeTestDb: Knex | null = null;
 let usingRealPostgres = false;
 
 /**
- * Initializes the test database:
- * - If a real PostgreSQL instance is reachable via `TEST_DATABASE_URL` or `DATABASE_URL` (and `USE_REAL_PG === 'true'`),
- *   it connects to real PostgreSQL for full row-level lock verification.
- * - Otherwise, it spins up an isolated, deterministic `pg-mem` PostgreSQL engine in memory so
- *   `npm test` passes out-of-the-box anywhere (local machine, CI, reviewer laptop) without external dependencies.
+ * In-memory pg-mem does not implement PostgreSQL's `SELECT ... FOR UPDATE` row lock wait queue.
+ * To faithfully simulate PostgreSQL transaction serialization inside in-memory test runs
+ * without polluting production service files, we wrap `knex.transaction()` in the test adapter
+ * with a FIFO promise queue while real PostgreSQL uses native row-level locks.
  */
+function attachInMemoryTransactionSerializer(knexInstance: Knex): void {
+  const originalTransaction = knexInstance.transaction.bind(knexInstance);
+  let tail: Promise<unknown> = Promise.resolve();
+
+  Object.defineProperty(knexInstance, 'transaction', {
+    configurable: true,
+    writable: true,
+    value: (
+      callback?: (trx: Knex.Transaction) => Promise<unknown>,
+      config?: Knex.TransactionConfig,
+    ) => {
+      if (typeof callback !== 'function') {
+        return originalTransaction(callback, config);
+      }
+
+      const next = tail.then(
+        () => originalTransaction(callback, config),
+        () => originalTransaction(callback, config),
+      );
+      tail = next.catch(() => undefined);
+      return next;
+    },
+  });
+}
+
 export async function setupTestDatabase(): Promise<Knex> {
   if (process.env.USE_REAL_PG === 'true') {
     const db = getDb();
@@ -36,6 +60,7 @@ export async function setupTestDatabase(): Promise<Knex> {
   });
 
   const knexInstance: Knex = mem.adapters.createKnex();
+  attachInMemoryTransactionSerializer(knexInstance);
   await initialMigration.up(knexInstance);
   setDb(knexInstance);
   activeTestDb = knexInstance;
@@ -50,7 +75,6 @@ export async function resetTestDatabase(): Promise<void> {
   }
 
   if (usingRealPostgres) {
-    await activeTestDb('user_status_events').del();
     await activeTestDb('blacklist').del();
     await activeTestDb('idempotency_keys').del();
     await activeTestDb('ledger_entries').del();

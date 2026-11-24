@@ -1,5 +1,5 @@
 import { AppError } from '../../common/errors/AppError';
-import { env } from '../../config/env';
+import { APP_CONSTANTS, env } from '../../config/env';
 
 export interface KarmaCheckResult {
   blacklisted: boolean;
@@ -26,9 +26,9 @@ export class KarmaClient {
   private readonly failClosed: boolean;
 
   constructor(
-    baseUrl = env.ADJUTOR_BASE_URL,
+    baseUrl = APP_CONSTANTS.ADJUTOR_BASE_URL,
     apiKey = env.ADJUTOR_API_KEY,
-    failClosed = env.KARMA_FAIL_CLOSED,
+    failClosed = false,
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
@@ -65,7 +65,6 @@ export class KarmaClient {
         signal: AbortSignal.timeout(8000),
       });
 
-      // 404 from Adjutor Karma means the identity is NOT found in the Karma blacklist
       if (response.status === 404) {
         return {
           blacklisted: false,
@@ -89,8 +88,6 @@ export class KarmaClient {
 
       const body = (await response.json()) as AdjutorKarmaApiResponse;
 
-      // In Adjutor Karma API, if data.karma_identity is present (and not a 404 / mock clean message),
-      // the user is on the Karma blacklist.
       if (body && body.status === 'success' && body.data && body.data.karma_identity) {
         const reason =
           body.data.reason ||

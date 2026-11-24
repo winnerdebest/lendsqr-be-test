@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { env } from '../../config/env';
+import { APP_CONSTANTS } from '../../config/env';
 
 export const fundWalletSchema = z.object({
   amountKobo: z
@@ -9,12 +9,12 @@ export const fundWalletSchema = z.object({
     })
     .int('amountKobo must be a whole integer in minor units (kobo)')
     .min(
-      env.MIN_TRANSACTION_AMOUNT_KOBO,
-      `Minimum funding amount is ${env.MIN_TRANSACTION_AMOUNT_KOBO} kobo`,
+      APP_CONSTANTS.MIN_TRANSACTION_AMOUNT_KOBO,
+      `Minimum funding amount is ${APP_CONSTANTS.MIN_TRANSACTION_AMOUNT_KOBO} kobo`,
     )
     .max(
-      env.MAX_TRANSACTION_AMOUNT_KOBO,
-      `Maximum funding amount is ${env.MAX_TRANSACTION_AMOUNT_KOBO} kobo`,
+      APP_CONSTANTS.MAX_TRANSACTION_AMOUNT_KOBO,
+      `Maximum funding amount is ${APP_CONSTANTS.MAX_TRANSACTION_AMOUNT_KOBO} kobo`,
     ),
   narration: z.string().trim().max(250).optional().default('Wallet funding deposit'),
   mode: z.enum(['auto', 'paystack', 'simulated']).optional().default('auto'),

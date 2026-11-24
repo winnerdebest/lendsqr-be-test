@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { env } from '../../config/env';
+import { APP_CONSTANTS, env } from '../../config/env';
 import { AppError } from '../errors/AppError';
 
 export interface AuthUserPayload {
@@ -20,7 +20,7 @@ declare global {
 
 export function signAccessToken(payload: AuthUserPayload): string {
   return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    expiresIn: APP_CONSTANTS.JWT_EXPIRES_IN,
   });
 }
 

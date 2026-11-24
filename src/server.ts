@@ -1,5 +1,5 @@
 import { app } from './app';
-import { env } from './config/env';
+import { APP_CONSTANTS, env } from './config/env';
 import { runMigrations } from './db/cli';
 import { getDb } from './db/knex';
 
@@ -14,12 +14,12 @@ async function bootstrap(): Promise<void> {
 
   const server = app.listen(env.PORT, () => {
     console.log(
-      `[${env.SERVICE_NAME}] Server listening on port ${env.PORT} (${env.NODE_ENV})`,
+      `[${APP_CONSTANTS.SERVICE_NAME}] Server listening on port ${env.PORT} (${env.NODE_ENV})`,
     );
   });
 
   const shutdown = async (signal: string): Promise<void> => {
-    console.log(`[${env.SERVICE_NAME}] Received ${signal}, shutting down gracefully...`);
+    console.log(`[${APP_CONSTANTS.SERVICE_NAME}] Received ${signal}, shutting down gracefully...`);
     server.close(async () => {
       await getDb().destroy();
       process.exit(0);

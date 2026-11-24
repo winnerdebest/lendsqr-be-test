@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { AppError } from '../../common/errors/AppError';
-import { env } from '../../config/env';
+import { APP_CONSTANTS, env } from '../../config/env';
 
 export interface PaystackInitializeResponse {
   authorizationUrl: string;
@@ -26,16 +26,13 @@ interface PaystackApiEnvelope<T> {
 export class PaystackClient {
   private readonly baseUrl: string;
   private readonly secretKey: string;
-  private readonly callbackUrl: string;
 
   constructor(
-    baseUrl = env.PAYSTACK_BASE_URL,
+    baseUrl = APP_CONSTANTS.PAYSTACK_BASE_URL,
     secretKey = env.PAYSTACK_SECRET_KEY,
-    callbackUrl = env.PAYSTACK_CALLBACK_URL,
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.secretKey = secretKey;
-    this.callbackUrl = callbackUrl;
   }
 
   public isConfigured(): boolean {
@@ -65,7 +62,7 @@ export class PaystackClient {
         amount: String(params.amountKobo),
         reference: params.reference,
         currency: 'NGN',
-        callback_url: params.callbackUrl || this.callbackUrl,
+        ...(params.callbackUrl ? { callback_url: params.callbackUrl } : {}),
         metadata: params.metadata || {},
       }),
       signal: AbortSignal.timeout(10000),

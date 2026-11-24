@@ -114,7 +114,6 @@ export const openApiSpec = {
         required: ['reason'],
         properties: {
           reason: { type: 'string', example: 'Suspicious velocity detected by compliance' },
-          actor: { type: 'string', example: 'risk-ops-admin' },
         },
       },
       AdminBlacklistRequest: {
@@ -364,18 +363,7 @@ export const openApiSpec = {
           },
         },
         responses: {
-          '200': { description: 'User unblocked and audit event recorded' },
-        },
-      },
-    },
-    '/v1/admin/users/{id}/events': {
-      get: {
-        tags: ['Admin'],
-        summary: 'Get block/unblock audit trail for a user',
-        security: [{ AdminKeyAuth: [] }],
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: {
-          '200': { description: 'Audit history retrieved' },
+          '200': { description: 'User unblocked' },
         },
       },
     },

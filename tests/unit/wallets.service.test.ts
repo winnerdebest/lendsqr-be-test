@@ -45,7 +45,7 @@ describe('WalletsService & AdminService (Unit Tests)', () => {
       });
 
       const fundResult = await walletsService.fundWallet(user.id, {
-        amountKobo: 750000, // ₦7,500.00
+        amountKobo: 750000,
         narration: 'Seed deposit',
         mode: 'simulated',
       });
@@ -93,12 +93,10 @@ describe('WalletsService & AdminService (Unit Tests)', () => {
         channel: 'card',
       });
 
-      // 1st verification credits the wallet
       const verified1 = await walletsService.verifyPaystackFunding(initResult.reference);
       expect(verified1.status).toBe('successful');
       expect(verified1.wallet?.balanceAfterKobo).toBe(500000);
 
-      // 2nd verification OR late webhook for the same reference MUST NOT double-credit
       mockPaystack.verifyWebhookSignature.mockReturnValue(true);
       await walletsService.handlePaystackWebhook(
         Buffer.from('{}'),
@@ -121,31 +119,26 @@ describe('WalletsService & AdminService (Unit Tests)', () => {
       expect(finalWallet.ledgerReconciledBalanceKobo).toBe(500000);
     });
 
-    it('records audit trail events when admin blocks and unblocks a user', async () => {
+    it('blocks and unblocks a user account with reason', async () => {
       const { user } = await authService.register({
-        email: 'audited.user@lendsqr.com',
+        email: 'managed.user@lendsqr.com',
         phone: '+2348010001003',
-        firstName: 'Audited',
+        firstName: 'Managed',
         lastName: 'User',
         password: 'Password123!',
       });
 
       const blocked = await adminService.blockUser(user.id, {
         reason: 'Velocity limit exceeded',
-        actor: 'compliance-officer',
       });
       expect(blocked.user.status).toBe('blocked');
-      expect(blocked.auditEvent.action).toBe('blocked');
+      expect(blocked.user.blockedReason).toBe('Velocity limit exceeded');
 
       const unblocked = await adminService.unblockUser(user.id, {
         reason: 'KYC documents verified',
-        actor: 'compliance-lead',
       });
       expect(unblocked.user.status).toBe('active');
-      expect(unblocked.auditEvent.action).toBe('unblocked');
-
-      const events = await adminService.getUserAuditEvents(user.id);
-      expect(events).toHaveLength(2);
+      expect(unblocked.user.blockedReason).toBeNull();
     });
   });
 
@@ -161,7 +154,6 @@ describe('WalletsService & AdminService (Unit Tests)', () => {
 
       await adminService.blockUser(user.id, {
         reason: 'Account frozen',
-        actor: 'admin',
       });
 
       await expect(
@@ -232,7 +224,6 @@ describe('WalletsService & AdminService (Unit Tests)', () => {
       const realClient = new PaystackClient(
         'https://api.paystack.co',
         'sk_test_sample_secret_key',
-        'https://callback.url',
       );
       const rawPayload = Buffer.from('{"event":"charge.success","data":{"reference":"LSQ-1"}}');
       const validSignature = crypto

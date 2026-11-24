@@ -37,14 +37,6 @@ adminRouter.patch(
 );
 
 adminRouter.get(
-  '/users/:id/events',
-  asyncHandler(async (req: Request, res: Response) => {
-    const events = await adminService.getUserAuditEvents(String(req.params.id));
-    sendSuccess(res, { events }, 'User status audit history retrieved', 200);
-  }),
-);
-
-adminRouter.get(
   '/blacklist',
   asyncHandler(async (_req: Request, res: Response) => {
     const items = await adminService.listBlacklist();

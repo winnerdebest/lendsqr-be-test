@@ -221,7 +221,6 @@ describe('TransfersService (Unit Tests — Positive & Negative Edge Cases)', () 
 
       await adminService.blockUser(sender.id, {
         reason: 'Account under investigation',
-        actor: 'risk-team',
       });
 
       await expect(
@@ -254,7 +253,6 @@ describe('TransfersService (Unit Tests — Positive & Negative Edge Cases)', () 
 
       await adminService.blockUser(recipient.id, {
         reason: 'Recipient wallet frozen',
-        actor: 'risk-team',
       });
 
       await expect(

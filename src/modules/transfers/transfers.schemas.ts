@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { env } from '../../config/env';
+import { APP_CONSTANTS } from '../../config/env';
 
 export const createTransferSchema = z.object({
   recipientIdentifier: z
     .string({
-      required_error: 'recipientIdentifier (recipient email, account number, or wallet ID) is required',
+      required_error:
+        'recipientIdentifier (recipient email, account number, or wallet ID) is required',
     })
     .trim()
     .min(3, 'recipientIdentifier must be at least 3 characters')
@@ -16,12 +17,12 @@ export const createTransferSchema = z.object({
     })
     .int('amountKobo must be a whole integer in minor units (kobo)')
     .min(
-      env.MIN_TRANSACTION_AMOUNT_KOBO,
-      `Minimum transfer amount is ${env.MIN_TRANSACTION_AMOUNT_KOBO} kobo`,
+      APP_CONSTANTS.MIN_TRANSACTION_AMOUNT_KOBO,
+      `Minimum transfer amount is ${APP_CONSTANTS.MIN_TRANSACTION_AMOUNT_KOBO} kobo`,
     )
     .max(
-      env.MAX_TRANSACTION_AMOUNT_KOBO,
-      `Maximum transfer amount is ${env.MAX_TRANSACTION_AMOUNT_KOBO} kobo`,
+      APP_CONSTANTS.MAX_TRANSACTION_AMOUNT_KOBO,
+      `Maximum transfer amount is ${APP_CONSTANTS.MAX_TRANSACTION_AMOUNT_KOBO} kobo`,
     ),
   narration: z.string().trim().max(250).optional().default('Wallet to wallet transfer'),
 });

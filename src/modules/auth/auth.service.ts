@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { AppError } from '../../common/errors/AppError';
 import { signAccessToken } from '../../common/middleware/auth';
-import { env } from '../../config/env';
+import { APP_CONSTANTS } from '../../config/env';
 import { BlacklistService, blacklistService } from '../blacklist/blacklist.service';
 import { UsersRepository, UserWithWalletDTO, usersRepository } from '../users/users.repository';
 import { LoginInput, RegisterInput } from './auth.schemas';
@@ -21,7 +21,6 @@ export class AuthService {
     const normalizedEmail = this.usersRepo.normalizeEmail(input.email);
     const normalizedPhone = this.usersRepo.normalizePhone(input.phone);
 
-    // 1. Check for existing email or phone before calling external APIs
     const existingByEmail = await this.usersRepo.findByEmail(normalizedEmail);
     if (existingByEmail) {
       throw AppError.conflict(
@@ -38,11 +37,9 @@ export class AuthService {
       );
     }
 
-    // 2. Check local blacklist + Lendsqr Adjutor Karma blacklist
     await this.blacklist.assertNotBlacklisted([normalizedEmail, normalizedPhone]);
 
-    // 3. Hash password and atomically create user + NGN wallet
-    const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(input.password, APP_CONSTANTS.BCRYPT_SALT_ROUNDS);
     const { user, wallet } = await this.usersRepo.createUserAndWallet({
       email: normalizedEmail,
       phone: normalizedPhone,

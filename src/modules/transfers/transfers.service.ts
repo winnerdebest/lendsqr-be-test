@@ -8,7 +8,6 @@ import {
   WalletRecord,
 } from '../../common/types/entities';
 import { formatKoboToNaira, generateReference, toKoboInt } from '../../common/utils/money';
-import { walletLockManager } from '../../common/utils/lockManager';
 import { getDb } from '../../db/knex';
 import { CreateTransferInput } from './transfers.schemas';
 
@@ -56,32 +55,31 @@ export class TransfersService {
    */
   public async resolveRecipient(
     identifier: string,
-    trx?: Knex.Transaction,
+    trx: Knex.Transaction,
   ): Promise<{ user: UserRecord; wallet: WalletRecord }> {
-    const dbRef = trx || this.db;
     const clean = identifier.trim();
 
     let user: UserRecord | undefined;
     let wallet: WalletRecord | undefined;
 
     if (clean.includes('@')) {
-      user = await dbRef<UserRecord>('users').where('email', clean.toLowerCase()).first();
+      user = await trx<UserRecord>('users').where('email', clean.toLowerCase()).first();
       if (user) {
-        wallet = await dbRef<WalletRecord>('wallets').where('user_id', user.id).first();
+        wallet = await trx<WalletRecord>('wallets').where('user_id', user.id).first();
       }
     } else if (/^\d{10}$/.test(clean)) {
-      wallet = await dbRef<WalletRecord>('wallets').where('account_number', clean).first();
+      wallet = await trx<WalletRecord>('wallets').where('account_number', clean).first();
       if (wallet) {
-        user = await dbRef<UserRecord>('users').where('id', wallet.user_id).first();
+        user = await trx<UserRecord>('users').where('id', wallet.user_id).first();
       }
     } else if (UUID_REGEX.test(clean)) {
-      wallet = await dbRef<WalletRecord>('wallets').where('id', clean).first();
+      wallet = await trx<WalletRecord>('wallets').where('id', clean).first();
       if (wallet) {
-        user = await dbRef<UserRecord>('users').where('id', wallet.user_id).first();
+        user = await trx<UserRecord>('users').where('id', wallet.user_id).first();
       } else {
-        user = await dbRef<UserRecord>('users').where('id', clean).first();
+        user = await trx<UserRecord>('users').where('id', clean).first();
         if (user) {
-          wallet = await dbRef<WalletRecord>('wallets').where('user_id', user.id).first();
+          wallet = await trx<WalletRecord>('wallets').where('user_id', user.id).first();
         }
       }
     }
@@ -94,15 +92,8 @@ export class TransfersService {
   }
 
   /**
-   * Executes an atomic Wallet A -> Wallet B transfer using pessimistic row-level locks.
-   *
-   * Concurrency & Deadlock Prevention:
-   * - Wallets are locked in deterministic ascending order of their IDs:
-   *   `SELECT * FROM wallets WHERE id IN (id1, id2) ORDER BY id ASC FOR UPDATE`
-   * - This guarantees that concurrent A->B and B->A transfers always acquire locks in the
-   *   exact same order, eliminating circular-wait deadlocks.
-   * - Double-entry ledger records (1 debit + 1 credit) and balance updates are committed
-   *   atomically inside the same ACID database transaction.
+   * Executes an atomic Wallet A -> Wallet B transfer using PostgreSQL pessimistic row locks:
+   * `SELECT * FROM wallets WHERE id IN (id1, id2) ORDER BY id ASC FOR UPDATE`
    */
   public async transferFunds(
     senderUserId: string,
@@ -115,25 +106,7 @@ export class TransfersService {
       );
     }
 
-    // First resolve sender and recipient wallet IDs so we can acquire deterministic sorted locks
-    const senderWalletLookup = await this.db<WalletRecord>('wallets')
-      .where('user_id', senderUserId)
-      .first();
-    if (!senderWalletLookup) {
-      throw AppError.notFound('Sender wallet not found');
-    }
-
-    const { wallet: recipientWalletLookup } = await this.resolveRecipient(
-      input.recipientIdentifier,
-    );
-
-    const sortedLockKeys = [
-      `wallet:${senderWalletLookup.id}`,
-      `wallet:${recipientWalletLookup.id}`,
-    ].sort();
-
-    return walletLockManager.withLocks(sortedLockKeys, async () =>
-      this.db.transaction(async (trx) => {
+    return this.db.transaction(async (trx) => {
       // 1. Fetch sender user and wallet
       const senderUser = await trx<UserRecord>('users').where('id', senderUserId).first();
       if (!senderUser) {
@@ -160,7 +133,7 @@ export class TransfersService {
         trx,
       );
 
-      // 3. Reject self-transfer before acquiring locks
+      // 3. Reject self-transfer
       if (
         senderUser.id === recipientUser.id ||
         senderWalletInitial.id === recipientWalletInitial.id
@@ -193,7 +166,7 @@ export class TransfersService {
         throw AppError.notFound('Unable to lock sender and recipient wallets for transfer');
       }
 
-      // 6. Re-verify sender balance under the exclusive row lock
+      // 6. Check sender balance under exclusive row lock
       const senderBalanceBefore = toKoboInt(lockedSenderWallet.balance);
       const recipientBalanceBefore = toKoboInt(lockedRecipientWallet.balance);
 
@@ -201,12 +174,7 @@ export class TransfersService {
         throw AppError.unprocessable(
           `Insufficient wallet balance: available ${formatKoboToNaira(senderBalanceBefore)}, required ${formatKoboToNaira(input.amountKobo)}`,
           'INSUFFICIENT_FUNDS',
-          [
-            {
-              availableKobo: senderBalanceBefore,
-              requiredKobo: input.amountKobo,
-            },
-          ],
+          [{ availableKobo: senderBalanceBefore, requiredKobo: input.amountKobo }],
         );
       }
 
@@ -228,8 +196,8 @@ export class TransfersService {
         updated_at: now,
       });
 
-      // 8. Record parent transaction
-      const txRecord: TransactionRecord = {
+      // 8. Record transaction and double-entry ledger entries (debit + credit)
+      await trx<TransactionRecord>('transactions').insert({
         id: transactionId,
         reference,
         provider_reference: null,
@@ -242,43 +210,37 @@ export class TransfersService {
         narration,
         failure_reason: null,
         metadata: {
-          senderUserId: senderUser.id,
           senderEmail: senderUser.email,
           senderAccountNumber: lockedSenderWallet.account_number,
-          recipientUserId: recipientUser.id,
           recipientEmail: recipientUser.email,
           recipientAccountNumber: lockedRecipientWallet.account_number,
         },
         created_at: now,
         updated_at: now,
-      };
+      });
 
-      await trx<TransactionRecord>('transactions').insert(txRecord);
-
-      // 9. Record double-entry ledger entries (debit sender + credit recipient)
-      const debitEntry: LedgerEntryRecord = {
-        id: crypto.randomUUID(),
-        transaction_id: transactionId,
-        wallet_id: lockedSenderWallet.id,
-        direction: 'debit',
-        amount: input.amountKobo,
-        balance_before: senderBalanceBefore,
-        balance_after: senderBalanceAfter,
-        created_at: now,
-      };
-
-      const creditEntry: LedgerEntryRecord = {
-        id: crypto.randomUUID(),
-        transaction_id: transactionId,
-        wallet_id: lockedRecipientWallet.id,
-        direction: 'credit',
-        amount: input.amountKobo,
-        balance_before: recipientBalanceBefore,
-        balance_after: recipientBalanceAfter,
-        created_at: now,
-      };
-
-      await trx<LedgerEntryRecord>('ledger_entries').insert([debitEntry, creditEntry]);
+      await trx<LedgerEntryRecord>('ledger_entries').insert([
+        {
+          id: crypto.randomUUID(),
+          transaction_id: transactionId,
+          wallet_id: lockedSenderWallet.id,
+          direction: 'debit',
+          amount: input.amountKobo,
+          balance_before: senderBalanceBefore,
+          balance_after: senderBalanceAfter,
+          created_at: now,
+        },
+        {
+          id: crypto.randomUUID(),
+          transaction_id: transactionId,
+          wallet_id: lockedRecipientWallet.id,
+          direction: 'credit',
+          amount: input.amountKobo,
+          balance_before: recipientBalanceBefore,
+          balance_after: recipientBalanceAfter,
+          created_at: now,
+        },
+      ]);
 
       return {
         transactionId,
@@ -308,8 +270,7 @@ export class TransfersService {
         },
         createdAt: now,
       };
-    }),
-    );
+    });
   }
 }
 

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Knex } from 'knex';
-import { UserRecord, UserStatus, UserStatusEventRecord, WalletRecord } from '../../common/types/entities';
+import { UserRecord, UserStatus, WalletRecord } from '../../common/types/entities';
 import { formatKoboToNaira, generateAccountNumber, toKoboInt } from '../../common/utils/money';
 import { getDb } from '../../db/knex';
 
@@ -116,40 +116,21 @@ export class UsersRepository {
     return this.toUserWithWalletDTO(user, wallet);
   }
 
-  public async updateStatusWithAudit(
+  public async updateStatus(
     userId: string,
     status: UserStatus,
-    reason: string,
-    actor = 'admin',
-  ): Promise<{ user: UserRecord; event: UserStatusEventRecord }> {
-    return this.db.transaction(async (trx) => {
-      const now = new Date();
-      const blockedReason = status === 'blocked' ? reason : null;
+    reason: string | null,
+  ): Promise<UserRecord | undefined> {
+    const now = new Date();
+    const blockedReason = status === 'blocked' ? reason : null;
 
-      await trx<UserRecord>('users').where('id', userId).update({
-        status,
-        blocked_reason: blockedReason,
-        updated_at: now,
-      });
-
-      const updatedUser = await trx<UserRecord>('users').where('id', userId).first();
-      if (!updatedUser) {
-        throw new Error('User disappeared during status update');
-      }
-
-      const event: UserStatusEventRecord = {
-        id: crypto.randomUUID(),
-        user_id: userId,
-        action: status === 'blocked' ? 'blocked' : 'unblocked',
-        reason,
-        actor,
-        created_at: now,
-      };
-
-      await trx<UserStatusEventRecord>('user_status_events').insert(event);
-
-      return { user: updatedUser, event };
+    await this.db<UserRecord>('users').where('id', userId).update({
+      status,
+      blocked_reason: blockedReason,
+      updated_at: now,
     });
+
+    return this.findById(userId);
   }
 
   public async listUsersWithWallets(): Promise<UserWithWalletDTO[]> {
@@ -166,12 +147,6 @@ export class UsersRepository {
         return w ? this.toUserWithWalletDTO(u, w) : undefined;
       })
       .filter((item): item is UserWithWalletDTO => Boolean(item));
-  }
-
-  public async getStatusHistory(userId: string): Promise<UserStatusEventRecord[]> {
-    return this.db<UserStatusEventRecord>('user_status_events')
-      .where('user_id', userId)
-      .orderBy('created_at', 'desc');
   }
 
   public toUserWithWalletDTO(user: UserRecord, wallet: WalletRecord): UserWithWalletDTO {

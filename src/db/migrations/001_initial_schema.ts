@@ -158,30 +158,9 @@ export async function up(knex: Knex): Promise<void> {
       .checkIn(['local', 'karma'], 'chk_blacklist_source');
     table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
   });
-
-  // 7. user_status_events table (audit log for block/unblock)
-  await knex.schema.createTable('user_status_events', (table) => {
-    table.uuid('id').primary();
-    table
-      .uuid('user_id')
-      .notNullable()
-      .references('id')
-      .inTable('users')
-      .onDelete('CASCADE');
-    table
-      .string('action', 20)
-      .notNullable()
-      .checkIn(['blocked', 'unblocked'], 'chk_user_status_events_action');
-    table.string('reason', 500).notNullable();
-    table.string('actor', 100).notNullable().defaultTo('admin');
-    table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
-
-    table.index(['user_id', 'created_at'], 'idx_user_status_events_user');
-  });
 }
 
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('user_status_events');
   await knex.schema.dropTableIfExists('blacklist');
   await knex.schema.dropTableIfExists('idempotency_keys');
   await knex.schema.dropTableIfExists('ledger_entries');
