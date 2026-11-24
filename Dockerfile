@@ -2,7 +2,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json postman_collection.json ./
 RUN npm ci
 
 COPY tsconfig*.json vite.config.ts ./
@@ -17,7 +17,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY package*.json ./
+COPY package*.json postman_collection.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist

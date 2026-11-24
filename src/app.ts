@@ -70,9 +70,18 @@ export function createApp(): Express {
     );
   });
 
-  // OpenAPI JSON & Branded Swagger UI
+  // OpenAPI JSON, Postman Collection JSON & Branded Swagger UI
   app.get('/docs.json', (_req: Request, res: Response) => {
     res.status(200).json(openApiSpec);
+  });
+
+  app.get('/postman.json', (_req: Request, res: Response) => {
+    const postmanPath = path.resolve(process.cwd(), 'postman_collection.json');
+    if (fs.existsSync(postmanPath)) {
+      res.sendFile(postmanPath);
+      return;
+    }
+    res.status(404).json({ status: 'error', message: 'Postman collection not found' });
   });
 
   app.get('/docs', (_req: Request, res: Response) => {

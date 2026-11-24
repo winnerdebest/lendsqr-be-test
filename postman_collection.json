@@ -1,0 +1,502 @@
+{
+  "info": {
+    "_postman_id": "a49d5612-8b9f-4e6c-9c83-213f7d39cdcc",
+    "name": "Lendsqr Wallet Service API (Winner OrluVictor)",
+    "description": "Complete Postman Collection for the Lendsqr Full-Stack / DevOps Engineer Assessment Wallet Service (`lendsqr-be-test`).\n\nLive Base URL: https://winner-orluvictor-lendsqr-be-test.onrender.com\nInteractive Swagger UI: https://winner-orluvictor-lendsqr-be-test.onrender.com/docs\nGitHub Repository: https://github.com/winnerdebest/lendsqr-be-test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://winner-orluvictor-lendsqr-be-test.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipientAccountNumber",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transactionReference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. System & Health",
+      "item": [
+        {
+          "name": "Health & DB Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication & Onboarding",
+      "item": [
+        {
+          "name": "Register Customer (Karma Check + Wallet Creation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('targetUserId', json.data.user.id);",
+                  "  pm.collectionVariables.set('recipientAccountNumber', json.data.user.wallet.accountNumber);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Obi\",\n  \"email\": \"ada.obi@example.com\",\n  \"phone\": \"+2348012345678\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ada.obi@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "me"]
+            }
+          }
+        },
+        {
+          "name": "Set 4-Digit Transfer PIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/me/pin",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "me", "pin"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Wallets & Funding",
+      "item": [
+        {
+          "name": "Get My Wallet Balance & Ledger Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallets/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "wallets", "me"]
+            }
+          }
+        },
+        {
+          "name": "Resolve Recipient Name by Account Number or Email",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallets/resolve?identifier={{recipientAccountNumber}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "wallets", "resolve"],
+              "query": [
+                { "key": "identifier", "value": "{{recipientAccountNumber}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Fund Wallet via Paystack (Idempotent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.reference) {",
+                  "  pm.collectionVariables.set('transactionReference', json.data.reference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "fund-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountKobo\": 500000,\n  \"narration\": \"Wallet deposit via Paystack\",\n  \"mode\": \"paystack\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallets/fund",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "wallets", "fund"]
+            }
+          }
+        },
+        {
+          "name": "Fund Wallet (Instant Simulated Deposit for Testing)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.reference) {",
+                  "  pm.collectionVariables.set('transactionReference', json.data.reference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "sim-fund-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountKobo\": 1000000,\n  \"narration\": \"Simulated wallet funding\",\n  \"mode\": \"simulated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallets/fund",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "wallets", "fund"]
+            }
+          }
+        },
+        {
+          "name": "Verify Paystack Funding Reference",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallets/fund/verify/{{transactionReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "wallets", "fund", "verify", "{{transactionReference}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Wallet Transfers & Transactions",
+      "item": [
+        {
+          "name": "Transfer Funds (Wallet A to Wallet B - Row Locked & Idempotent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.reference) {",
+                  "  pm.collectionVariables.set('transactionReference', json.data.reference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "trf-{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipientIdentifier\": \"{{recipientAccountNumber}}\",\n  \"amountKobo\": 150000,\n  \"narration\": \"Supplier payout\",\n  \"pin\": \"1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "transfers"]
+            }
+          }
+        },
+        {
+          "name": "List Paginated Wallet Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Transaction Detail & Double-Entry Ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transactions/{{transactionReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "transactions", "{{transactionReference}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Back-Office Administration & Blacklist",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('adminToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@lendsqr.com\",\n  \"password\": \"AdminPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "List All Users & Wallets",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "List All Platform Transactions (Read-Only Audit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "transactions"]
+            }
+          }
+        },
+        {
+          "name": "Block User Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Suspicious transaction velocity\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/users/{{targetUserId}}/block",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "users", "{{targetUserId}}", "block"]
+            }
+          }
+        },
+        {
+          "name": "Unblock User Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Compliance review cleared\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/users/{{targetUserId}}/unblock",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "users", "{{targetUserId}}", "unblock"]
+            }
+          }
+        },
+        {
+          "name": "Add Identity to Local Blacklist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identity\": \"fraudster@badactor.com\",\n  \"reason\": \"Confirmed identity fraud\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/blacklist",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "blacklist"]
+            }
+          }
+        },
+        {
+          "name": "List Blacklisted Identities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/blacklist",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "blacklist"]
+            }
+          }
+        },
+        {
+          "name": "Remove Identity from Local Blacklist",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/admin/blacklist/fraudster@badactor.com",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "admin", "blacklist", "fraudster@badactor.com"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
