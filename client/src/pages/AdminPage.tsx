@@ -26,7 +26,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'blacklist'>('users');
 
   // Admin Login Form State
-  const [adminEmail, setAdminEmail] = useState('admin@lendsqr.com');
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -149,6 +149,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
               <input
                 type="email"
                 className="form-input"
+                placeholder="Enter admin email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 required

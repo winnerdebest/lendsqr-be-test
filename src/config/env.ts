@@ -15,6 +15,8 @@ const envSchema = z.object({
     .default('lendsqr-super-secret-jwt-key-change-in-production-2026'),
   ADJUTOR_API_KEY: z.string().optional().default(''),
   PAYSTACK_SECRET_KEY: z.string().optional().default(''),
+  ADMIN_EMAIL: z.string().email().default('admin@lendsqr.com'),
+  ADMIN_PASSWORD: z.string().min(8).default('AdminPassword123!'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -30,7 +32,7 @@ export const APP_CONSTANTS = {
   MIN_TRANSACTION_AMOUNT_KOBO: 10000, // ₦100.00
   MAX_TRANSACTION_AMOUNT_KOBO: 1000000000, // ₦10,000,000.00
   IDEMPOTENCY_TTL_HOURS: 24,
-  DEFAULT_ADMIN_EMAIL: 'admin@lendsqr.com',
-  DEFAULT_ADMIN_PASSWORD: 'AdminPassword123!',
+  DEFAULT_ADMIN_EMAIL: env.ADMIN_EMAIL,
+  DEFAULT_ADMIN_PASSWORD: env.ADMIN_PASSWORD,
   DEFAULT_ADMIN_PHONE: '+2348000000000',
 } as const;

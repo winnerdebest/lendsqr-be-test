@@ -156,7 +156,10 @@ export class WalletsService {
   /**
    * Verifies a Paystack transaction by reference and idempotently credits the wallet.
    */
-  public async verifyPaystackFunding(reference: string): Promise<FundingResultDTO> {
+  public async verifyPaystackFunding(
+    reference: string,
+    userId?: string,
+  ): Promise<FundingResultDTO> {
     const existingTx = await this.db<TransactionRecord>('transactions')
       .where('reference', reference)
       .orWhere('provider_reference', reference)
@@ -164,6 +167,18 @@ export class WalletsService {
 
     if (!existingTx || existingTx.type !== 'funding' || !existingTx.destination_wallet_id) {
       throw AppError.notFound(`Funding transaction '${reference}' not found`);
+    }
+
+    if (userId) {
+      const userWallet = await this.db<WalletRecord>('wallets')
+        .where('user_id', userId)
+        .first();
+      if (!userWallet || existingTx.destination_wallet_id !== userWallet.id) {
+        throw AppError.forbidden(
+          'You are not authorized to verify a funding transaction for another wallet',
+          'FORBIDDEN',
+        );
+      }
     }
 
     if (existingTx.status === 'successful') {

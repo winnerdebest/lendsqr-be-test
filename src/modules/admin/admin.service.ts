@@ -36,6 +36,10 @@ export class AdminService {
       throw AppError.notFound(`User '${userId}' not found`);
     }
 
+    if (existing.role === 'admin') {
+      throw AppError.forbidden('Administrator accounts cannot be blocked', 'FORBIDDEN');
+    }
+
     await this.usersRepo.updateStatus(userId, 'blocked', input.reason);
     const updatedDto = await this.usersRepo.findUserWithWalletById(userId);
     if (!updatedDto) {

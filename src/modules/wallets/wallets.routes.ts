@@ -96,7 +96,10 @@ walletsRouter.get(
   '/fund/verify/:reference',
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
-    const result = await walletsService.verifyPaystackFunding(String(req.params.reference));
+    const result = await walletsService.verifyPaystackFunding(
+      String(req.params.reference),
+      req.user!.userId,
+    );
     sendSuccess(res, result, 'Funding payment verified and wallet credited', 200);
   }),
 );
