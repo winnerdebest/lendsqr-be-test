@@ -1,0 +1,35 @@
+databases:
+  - name: winner-orluvictor-lendsqr-db
+    databaseName: lendsqr_wallet
+    user: lendsqr_user
+    plan: free
+
+services:
+  - type: web
+    name: winner-orluvictor-lendsqr-be-test
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: winner-orluvictor-lendsqr-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: ADJUTOR_BASE_URL
+        value: https://adjutor.lendsqr.com/v2
+      - key: ADJUTOR_API_KEY
+        sync: false
+      - key: PAYSTACK_BASE_URL
+        value: https://api.paystack.co
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_CALLBACK_URL
+        value: https://winner-orluvictor-lendsqr-be-test.onrender.com/v1/wallets/fund/verify
