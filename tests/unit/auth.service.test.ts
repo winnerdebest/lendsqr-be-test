@@ -50,6 +50,7 @@ describe('AuthService (Unit Tests)', () => {
         firstName: sampleUser.first_name,
         lastName: sampleUser.last_name,
         role: 'user',
+        hasPin: false,
         status: 'active',
         blockedReason: null,
         createdAt: sampleUser.created_at,

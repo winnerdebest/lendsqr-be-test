@@ -26,7 +26,7 @@ export function TransactionsPage() {
     void loadTransactions();
   }, []);
 
-  const handleInspectLedger = async (reference: string) => {
+  const handleViewReceipt = async (reference: string) => {
     setError(null);
     try {
       const res = await apiRequest<TransactionDetail>(
@@ -34,7 +34,7 @@ export function TransactionsPage() {
       );
       setSelectedTx(res.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load ledger entries');
+      setError(err instanceof Error ? err.message : 'Failed to load transaction receipt');
     }
   };
 
@@ -42,24 +42,24 @@ export function TransactionsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Transactions & Double-Entry Ledger</h1>
-          <p style={{ fontSize: '0.9rem' }}>
-            Click any transaction to inspect its underlying debit and credit ledger entries.
+          <h1 className="page-title">Transactions</h1>
+          <p style={{ fontSize: '0.92rem' }}>
+            View all deposits and transfers on your wallet.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <select
             className="form-input"
-            style={{ width: '180px', padding: '0.5rem 0.75rem' }}
+            style={{ width: '180px', padding: '0.55rem 0.85rem' }}
             value={typeFilter}
             onChange={(e) => {
               setTypeFilter(e.target.value);
               void loadTransactions(e.target.value);
             }}
           >
-            <option value="">All Types</option>
-            <option value="funding">Funding Only</option>
+            <option value="">All Transactions</option>
+            <option value="funding">Deposits Only</option>
             <option value="transfer">Transfers Only</option>
           </select>
           <button
@@ -73,64 +73,6 @@ export function TransactionsPage() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
-
-      {selectedTx && (
-        <div className="panel" style={{ borderColor: 'var(--teal)' }}>
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">
-                Double-Entry Ledger Breakdown:{' '}
-                <span className="mono">{selectedTx.reference}</span>
-              </h2>
-              <p style={{ fontSize: '0.84rem' }}>
-                Type: <strong>{selectedTx.type}</strong> &middot; Amount:{' '}
-                <strong>{selectedTx.amountFormatted}</strong> &middot; Narration:{' '}
-                {selectedTx.narration || '—'}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() => setSelectedTx(null)}
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ledger Entry ID</th>
-                  <th>Wallet ID</th>
-                  <th>Direction</th>
-                  <th>Amount (Kobo)</th>
-                  <th>Balance Before (Kobo)</th>
-                  <th>Balance After (Kobo)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedTx.ledgerEntries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="mono">{entry.id.slice(0, 8)}...</td>
-                    <td className="mono">{entry.walletId.slice(0, 8)}...</td>
-                    <td>
-                      <span className={`badge badge-${entry.direction}`}>
-                        {entry.direction.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="mono">
-                      {entry.amountFormatted} ({entry.amountKobo.toLocaleString()})
-                    </td>
-                    <td className="mono">{entry.balanceBeforeKobo.toLocaleString()}</td>
-                    <td className="mono">{entry.balanceAfterKobo.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       <div className="panel">
         <div className="panel-header">
@@ -146,29 +88,34 @@ export function TransactionsPage() {
             <table>
               <thead>
                 <tr>
+                  <th>Description</th>
                   <th>Reference</th>
                   <th>Type</th>
-                  <th>Direction</th>
                   <th>Amount</th>
-                  <th>Narration</th>
                   <th>Status</th>
                   <th>Date</th>
-                  <th>Ledger</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((tx) => (
                   <tr key={tx.id}>
-                    <td className="mono">{tx.reference}</td>
-                    <td style={{ textTransform: 'capitalize' }}>{tx.type}</td>
-                    <td>
-                      <span className={`badge badge-${tx.direction}`}>{tx.direction}</span>
-                    </td>
                     <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
+                      {tx.narration || (tx.type === 'funding' ? 'Wallet Deposit' : 'Transfer')}
+                    </td>
+                    <td className="mono">{tx.reference}</td>
+                    <td style={{ textTransform: 'capitalize' }}>
+                      {tx.type === 'funding' ? 'Deposit' : 'Transfer'}
+                    </td>
+                    <td
+                      style={{
+                        fontWeight: 700,
+                        color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
+                      }}
+                    >
                       {tx.direction === 'outbound' ? '-' : '+'}
                       {tx.amountFormatted}
                     </td>
-                    <td>{tx.narration || '—'}</td>
                     <td>
                       <span className={`badge badge-${tx.status}`}>{tx.status}</span>
                     </td>
@@ -177,9 +124,9 @@ export function TransactionsPage() {
                       <button
                         type="button"
                         className="btn btn-outline btn-sm"
-                        onClick={() => void handleInspectLedger(tx.reference)}
+                        onClick={() => void handleViewReceipt(tx.reference)}
                       >
-                        Inspect Ledger
+                        View Receipt
                       </button>
                     </td>
                   </tr>
@@ -189,6 +136,68 @@ export function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {selectedTx && (
+        <div className="modal-backdrop" onClick={() => setSelectedTx(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3 className="panel-title">Transaction Receipt</h3>
+              <span className={`badge badge-${selectedTx.status}`}>{selectedTx.status}</span>
+            </div>
+
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '1.1rem',
+                background: 'var(--bg)',
+                borderRadius: '10px',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ fontSize: '0.8rem', color: 'var(--slate)' }}>Amount</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--navy)' }}>
+                {selectedTx.direction === 'outbound' ? '-' : '+'}
+                {selectedTx.amountFormatted}
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.88rem', display: 'grid', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Reference</span>
+                <strong className="mono">{selectedTx.reference}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Type</span>
+                <strong style={{ textTransform: 'capitalize' }}>{selectedTx.type}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Description</span>
+                <strong>{selectedTx.narration || '—'}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Date & Time</span>
+                <strong>{new Date(selectedTx.createdAt).toLocaleString()}</strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-navy btn-block"
+              style={{ marginTop: '1.5rem' }}
+              onClick={() => setSelectedTx(null)}
+            >
+              Close Receipt
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

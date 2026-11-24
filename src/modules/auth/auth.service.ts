@@ -104,6 +104,22 @@ export class AuthService {
     }
     return profile;
   }
+
+  public async setTransferPin(userId: string, pin: string): Promise<UserWithWalletDTO> {
+    const user = await this.usersRepo.findById(userId);
+    if (!user) {
+      throw AppError.notFound('User account not found');
+    }
+
+    const pinHash = await bcrypt.hash(pin, APP_CONSTANTS.BCRYPT_SALT_ROUNDS);
+    await this.usersRepo.updatePinHash(userId, pinHash);
+
+    const updated = await this.usersRepo.findUserWithWalletById(userId);
+    if (!updated) {
+      throw AppError.notFound('User account not found');
+    }
+    return updated;
+  }
 }
 
 export const authService = new AuthService();

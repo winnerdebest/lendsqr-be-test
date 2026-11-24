@@ -20,6 +20,7 @@ export interface UserWithWalletDTO {
   firstName: string;
   lastName: string;
   role: 'user' | 'admin';
+  hasPin: boolean;
   status: UserStatus;
   blockedReason: string | null;
   createdAt: Date;
@@ -136,6 +137,13 @@ export class UsersRepository {
     return this.findById(userId);
   }
 
+  public async updatePinHash(userId: string, pinHash: string): Promise<void> {
+    await this.db<UserRecord>('users').where('id', userId).update({
+      pin_hash: pinHash,
+      updated_at: new Date(),
+    });
+  }
+
   public async listUsersWithWallets(): Promise<UserWithWalletDTO[]> {
     const users = await this.db<UserRecord>('users').orderBy('created_at', 'desc');
     const wallets = await this.db<WalletRecord>('wallets');
@@ -161,6 +169,7 @@ export class UsersRepository {
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role || 'user',
+      hasPin: Boolean(user.pin_hash),
       status: user.status,
       blockedReason: user.blocked_reason,
       createdAt: user.created_at,

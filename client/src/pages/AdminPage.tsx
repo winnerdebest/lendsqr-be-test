@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AdminTransactionItem,
   apiRequest,
   BlacklistEntry,
   saveToken,
@@ -13,17 +14,19 @@ interface AdminPageProps {
 
 export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
   const isAdmin = user?.role === 'admin';
+  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'blacklist'>('users');
 
-  // Admin Login Form State (shown when user is not logged in as admin)
+  // Admin Login Form State
   const [adminEmail, setAdminEmail] = useState('admin@lendsqr.com');
   const [adminPassword, setAdminPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   // Admin Data State
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [transactions, setTransactions] = useState<AdminTransactionItem[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [newIdentity, setNewIdentity] = useState('');
-  const [newReason, setNewReason] = useState('Confirmed compliance violation');
+  const [newReason, setNewReason] = useState('Compliance hold');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -32,11 +35,13 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
     setLoading(true);
     setError(null);
     try {
-      const [uRes, bRes] = await Promise.all([
+      const [uRes, txRes, bRes] = await Promise.all([
         apiRequest<{ users: UserProfile[] }>('/v1/admin/users'),
+        apiRequest<{ transactions: AdminTransactionItem[] }>('/v1/admin/transactions'),
         apiRequest<{ items: BlacklistEntry[] }>('/v1/admin/blacklist'),
       ]);
       setUsers(uRes.data.users);
+      setTransactions(txRes.data.transactions);
       setBlacklist(bRes.data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load admin data');
@@ -67,7 +72,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
       );
 
       if (res.data.user.role !== 'admin') {
-        throw new Error('This account does not have admin privileges.');
+        throw new Error('This account does not have administrator privileges.');
       }
 
       saveToken(res.data.accessToken);
@@ -81,14 +86,14 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
 
   if (!isAdmin) {
     return (
-      <div style={{ maxWidth: '480px', margin: '2rem auto' }}>
+      <div style={{ maxWidth: '460px', margin: '2.5rem auto' }}>
         <div className="panel">
           <h1 className="page-title" style={{ marginBottom: '0.4rem' }}>
-            Back-Office Admin Login
+            Admin Portal Sign In
           </h1>
           <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-            Sign in with your Lendsqr administrator email and password to manage accounts
-            and the blacklist.
+            Sign in with your Lendsqr administrator credentials to view customers,
+            transactions, and compliance controls.
           </p>
 
           {error && <div className="alert alert-error">{error}</div>}
@@ -106,7 +111,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Admin Password</label>
+              <label className="form-label">Password</label>
               <input
                 type="password"
                 className="form-input"
@@ -115,10 +120,6 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
                 onChange={(e) => setAdminPassword(e.target.value)}
                 required
               />
-              <div className="form-hint">
-                Default seeded admin: <span className="mono">admin@lendsqr.com</span> /{' '}
-                <span className="mono">AdminPassword123!</span>
-              </div>
             </div>
 
             <button
@@ -126,7 +127,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
               className="btn btn-teal btn-block"
               disabled={authLoading}
             >
-              {authLoading ? 'Signing in...' : 'Sign In as Admin'}
+              {authLoading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
         </div>
@@ -138,8 +139,8 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
     const action = u.status === 'active' ? 'block' : 'unblock';
     const reason =
       action === 'block'
-        ? 'Account frozen by admin compliance review'
-        : 'Account cleared and restored by admin';
+        ? 'Account frozen by administrator'
+        : 'Account restored by administrator';
 
     setError(null);
     setSuccessMsg(null);
@@ -149,7 +150,9 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
         body: { reason },
       });
       setSuccessMsg(
-        `User ${u.email} has been ${action === 'block' ? 'blocked' : 'unblocked'}.`,
+        `Customer ${u.firstName} ${u.lastName} has been ${
+          action === 'block' ? 'blocked' : 'unblocked'
+        }.`,
       );
       await loadAdminData();
     } catch (err) {
@@ -181,21 +184,23 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
       await apiRequest(`/v1/admin/blacklist/${encodeURIComponent(identity)}`, {
         method: 'DELETE',
       });
-      setSuccessMsg(`Removed '${identity}' from the local blacklist.`);
+      setSuccessMsg(`Removed '${identity}' from the blacklist.`);
       await loadAdminData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove identity');
     }
   };
 
+  const customerCount = users.filter((u) => u.role !== 'admin').length;
+  const activeCount = users.filter((u) => u.role !== 'admin' && u.status === 'active').length;
+
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Back-Office Admin & Blacklist Console</h1>
-          <p style={{ fontSize: '0.9rem' }}>
-            Signed in as Administrator (<strong>{user.email}</strong>). Block or unblock
-            accounts and manage blacklisted identities.
+          <h1 className="page-title">Administration Console</h1>
+          <p style={{ fontSize: '0.92rem' }}>
+            Manage customer accounts, view platform transactions, and update the blacklist.
           </p>
         </div>
         <button
@@ -203,152 +208,251 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
           className="btn btn-outline btn-sm"
           onClick={() => void loadAdminData()}
         >
-          Refresh Data
+          Refresh
+        </button>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">Total Customers</div>
+          <div className="stat-value">{customerCount}</div>
+          <div className="stat-sub">{activeCount} active accounts</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Total Transactions</div>
+          <div className="stat-value">{transactions.length}</div>
+          <div className="stat-sub">Read-only platform audit view</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Blacklisted Identities</div>
+          <div className="stat-value">{blacklist.length}</div>
+          <div className="stat-sub">Blocked from onboarding</div>
+        </div>
+      </div>
+
+      <div className="tabs-bar">
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          Customers ({users.length})
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('transactions')}
+        >
+          All Transactions ({transactions.length})
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'blacklist' ? 'active' : ''}`}
+          onClick={() => setActiveTab('blacklist')}
+        >
+          Blacklist ({blacklist.length})
         </button>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
       {successMsg && <div className="alert alert-success">{successMsg}</div>}
 
-      <div className="panel">
-        <div className="panel-header">
-          <h2 className="panel-title">Registered Accounts ({users.length})</h2>
-        </div>
-
-        {loading ? (
-          <p>Loading users...</p>
-        ) : users.length === 0 ? (
-          <p>No users registered yet.</p>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Account No.</th>
-                  <th>Balance</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
-                      {u.firstName} {u.lastName}
-                    </td>
-                    <td>{u.email}</td>
-                    <td>
-                      <span className="badge badge-pending">{u.role}</span>
-                    </td>
-                    <td className="mono">{u.wallet.accountNumber}</td>
-                    <td style={{ fontWeight: 600 }}>{u.wallet.balanceFormatted}</td>
-                    <td>
-                      <span className={`badge badge-${u.status}`}>{u.status}</span>
-                    </td>
-                    <td>
-                      {u.role === 'admin' ? (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--slate)' }}>
-                          Protected
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${
-                            u.status === 'active' ? 'btn-danger' : 'btn-success'
-                          }`}
-                          onClick={() => void handleToggleUserStatus(u)}
-                        >
-                          {u.status === 'active' ? 'Block Account' : 'Unblock Account'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {activeTab === 'users' && (
+        <div className="panel">
+          <div className="panel-header">
+            <h2 className="panel-title">Customer Accounts</h2>
           </div>
-        )}
-      </div>
 
-      <div className="panel">
-        <div className="panel-header">
-          <h2 className="panel-title">Blacklist Management (Local DB + Cached Karma Hits)</h2>
-        </div>
-
-        <form onSubmit={handleAddBlacklist} style={{ marginBottom: '1.5rem' }}>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Identity to Blacklist (Email or Phone)</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. fraudster@badactor.com or +2348099998888"
-                value={newIdentity}
-                onChange={(e) => setNewIdentity(e.target.value)}
-                required
-              />
+          {loading ? (
+            <p>Loading customers...</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Account No.</th>
+                    <th>Wallet Balance</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
+                        {u.firstName} {u.lastName}
+                      </td>
+                      <td>{u.email}</td>
+                      <td>{u.phone}</td>
+                      <td className="mono">{u.wallet.accountNumber}</td>
+                      <td style={{ fontWeight: 600 }}>{u.wallet.balanceFormatted}</td>
+                      <td>
+                        <span className={`badge badge-${u.status}`}>{u.status}</span>
+                      </td>
+                      <td>
+                        {u.role === 'admin' ? (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--slate)' }}>
+                            Admin
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${
+                              u.status === 'active' ? 'btn-danger' : 'btn-success'
+                            }`}
+                            onClick={() => void handleToggleUserStatus(u)}
+                          >
+                            {u.status === 'active' ? 'Block' : 'Unblock'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </div>
+      )}
 
-            <div className="form-group">
-              <label className="form-label">Reason</label>
-              <div style={{ display: 'flex', gap: '0.6rem' }}>
+      {activeTab === 'transactions' && (
+        <div className="panel">
+          <div className="panel-header">
+            <h2 className="panel-title">All Platform Transactions (Read-Only)</h2>
+          </div>
+
+          {transactions.length === 0 ? (
+            <p>No transactions recorded yet.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>Type</th>
+                    <th>Sender</th>
+                    <th>Recipient</th>
+                    <th>Amount</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((tx) => (
+                    <tr key={tx.id}>
+                      <td className="mono">{tx.reference}</td>
+                      <td style={{ textTransform: 'capitalize' }}>
+                        {tx.type === 'funding' ? 'Deposit' : 'Transfer'}
+                      </td>
+                      <td>
+                        {tx.metadata?.senderEmail ||
+                          tx.metadata?.senderAccountNumber ||
+                          (tx.type === 'funding' ? 'Paystack' : '—')}
+                      </td>
+                      <td>
+                        {tx.metadata?.recipientEmail ||
+                          tx.metadata?.recipientAccountNumber ||
+                          'Customer Wallet'}
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--navy)' }}>
+                        {tx.amountFormatted}
+                      </td>
+                      <td>{tx.narration || '—'}</td>
+                      <td>
+                        <span className={`badge badge-${tx.status}`}>{tx.status}</span>
+                      </td>
+                      <td>{new Date(tx.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'blacklist' && (
+        <div className="panel">
+          <div className="panel-header">
+            <h2 className="panel-title">Blacklisted Identities</h2>
+          </div>
+
+          <form onSubmit={handleAddBlacklist} style={{ marginBottom: '1.5rem' }}>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Email or Phone Number</label>
                 <input
                   type="text"
                   className="form-input"
-                  value={newReason}
-                  onChange={(e) => setNewReason(e.target.value)}
+                  placeholder="Enter email or phone number to block"
+                  value={newIdentity}
+                  onChange={(e) => setNewIdentity(e.target.value)}
                   required
                 />
-                <button type="submit" className="btn btn-teal">
-                  Blacklist
-                </button>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Reason</label>
+                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newReason}
+                    onChange={(e) => setNewReason(e.target.value)}
+                    required
+                  />
+                  <button type="submit" className="btn btn-teal">
+                    Add
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
 
-        {blacklist.length === 0 ? (
-          <p style={{ fontSize: '0.9rem' }}>No identities in the local blacklist table yet.</p>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Identity</th>
-                  <th>Source</th>
-                  <th>Reason</th>
-                  <th>Date Added</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {blacklist.map((b) => (
-                  <tr key={b.id}>
-                    <td className="mono">{b.identity}</td>
-                    <td>
-                      <span className="badge badge-pending">{b.source}</span>
-                    </td>
-                    <td>{b.reason}</td>
-                    <td>{new Date(b.created_at).toLocaleString()}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => void handleRemoveBlacklist(b.identity)}
-                      >
-                        Remove
-                      </button>
-                    </td>
+          {blacklist.length === 0 ? (
+            <p style={{ fontSize: '0.9rem' }}>No blacklisted identities yet.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Identity</th>
+                    <th>Source</th>
+                    <th>Reason</th>
+                    <th>Date Added</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {blacklist.map((b) => (
+                    <tr key={b.id}>
+                      <td className="mono">{b.identity}</td>
+                      <td>
+                        <span className="badge badge-pending">{b.source}</span>
+                      </td>
+                      <td>{b.reason}</td>
+                      <td>{new Date(b.created_at).toLocaleString()}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => void handleRemoveBlacklist(b.identity)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -49,41 +49,31 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
         </div>
 
         <div className="auth-hero-box">
-          <h2>Instant NGN Wallet Onboarding.</h2>
+          <h2>Open your NGN wallet in under a minute.</h2>
           <p>
-            Every new customer is automatically screened against our local compliance list and
-            the Lendsqr Adjutor Karma API before an NGN wallet and 10-digit account number are
-            provisioned.
+            Get a dedicated 10-digit account number immediately upon signup to fund, send,
+            and receive money effortlessly.
           </p>
           <div className="feature-pills">
             <div className="feature-pill">
               <span className="feature-dot" />
-              <span>
-                <strong>Karma Blacklist Check:</strong> Screens email & phone at signup
-              </span>
+              <span>Dedicated 10-digit NGN wallet account number</span>
             </div>
             <div className="feature-pill">
               <span className="feature-dot" />
-              <span>
-                <strong>Atomic Provisioning:</strong> User + NGN wallet created in one transaction
-              </span>
+              <span>Zero maintenance fees & instant transfers</span>
             </div>
           </div>
         </div>
 
-        <div style={{ fontSize: '0.84rem', display: 'flex', gap: '1.25rem' }}>
-          <Link to="/admin">Open Back-Office Admin Console &rarr;</Link>
-          <a href="/docs" target="_blank" rel="noreferrer">
-            Swagger API Docs &rarr;
-          </a>
+        <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)' }}>
+          &copy; {new Date().getFullYear()} Lendsqr Wallet
         </div>
       </aside>
 
       <main className="auth-main">
         <h1 className="auth-title">Create Account</h1>
-        <p className="auth-subtitle">
-          Register to verify Karma status and open your NGN wallet.
-        </p>
+        <p className="auth-subtitle">Enter your personal details to open your wallet.</p>
 
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -119,7 +109,7 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
             <input
               type="email"
               className="form-input"
-              placeholder="ada.obi@lendsqr.com"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -136,7 +126,6 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
               onChange={(e) => setPhone(e.target.value)}
               required
             />
-            <div className="form-hint">10 to 15 digits (e.g. +2348012345678)</div>
           </div>
 
           <div className="form-group">
@@ -144,7 +133,7 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
             <input
               type="password"
               className="form-input"
-              placeholder="Minimum 8 characters"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               minLength={8}
@@ -158,11 +147,11 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
             style={{ marginTop: '0.5rem' }}
             disabled={loading}
           >
-            {loading ? 'Verifying Karma & Creating Wallet...' : 'Create Wallet Account'}
+            {loading ? 'Creating Wallet...' : 'Create Account'}
           </button>
         </form>
 
-        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
+        <p style={{ marginTop: '1.5rem', fontSize: '0.92rem' }}>
           Already have an account?{' '}
           <Link to="/login" style={{ fontWeight: 600 }}>
             Log In

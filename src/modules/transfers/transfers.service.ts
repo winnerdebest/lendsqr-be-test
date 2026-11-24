@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { Knex } from 'knex';
 import { AppError } from '../../common/errors/AppError';
@@ -118,6 +119,20 @@ export class TransfersService {
           `Transfer denied: your account is blocked${senderUser.blocked_reason ? ` (${senderUser.blocked_reason})` : ''}`,
           'USER_BLOCKED',
         );
+      }
+
+      // If the user has configured a 4-digit transfer PIN, verify it before proceeding
+      if (senderUser.pin_hash) {
+        if (!input.pin) {
+          throw AppError.forbidden(
+            'Your 4-digit transfer PIN is required to authorize this transfer',
+            'FORBIDDEN',
+          );
+        }
+        const pinMatches = await bcrypt.compare(input.pin, senderUser.pin_hash);
+        if (!pinMatches) {
+          throw AppError.forbidden('Incorrect 4-digit transfer PIN', 'FORBIDDEN');
+        }
       }
 
       const senderWalletInitial = await trx<WalletRecord>('wallets')

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   apiRequest,
   TransactionItem,
@@ -13,14 +13,18 @@ interface DashboardPageProps {
 }
 
 export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [wallet, setWallet] = useState<WalletSummary>(user.wallet);
   const [recentTxs, setRecentTxs] = useState<TransactionItem[]>([]);
   const [amountNaira, setAmountNaira] = useState('5000');
-  const [narration, setNarration] = useState('Wallet top-up');
-  const [mode, setMode] = useState<'simulated' | 'paystack'>('simulated');
+  const [narration, setNarration] = useState('Wallet deposit');
   const [funding, setFunding] = useState(false);
   const [verifyingRef, setVerifyingRef] = useState('');
   const [pendingPaystackUrl, setPendingPaystackUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [savingPin, setSavingPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -37,9 +41,41 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
     }
   };
 
+  const verifyReference = async (ref: string) => {
+    if (!ref.trim()) return;
+    setError(null);
+    setFunding(true);
+    try {
+      const res = await apiRequest<{ reference: string; amountFormatted: string }>(
+        `/v1/wallets/fund/verify/${encodeURIComponent(ref.trim())}`,
+      );
+      setSuccessMsg(
+        `Deposit of ${res.data.amountFormatted} confirmed and added to your balance!`,
+      );
+      setPendingPaystackUrl(null);
+      await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment verification failed');
+    } finally {
+      setFunding(false);
+    }
+  };
+
   useEffect(() => {
     void loadWalletAndTxs();
+
+    const callbackRef = searchParams.get('reference') || searchParams.get('trxref');
+    if (callbackRef) {
+      setSearchParams({}, { replace: true });
+      void verifyReference(callbackRef);
+    }
   }, []);
+
+  const handleCopyAccount = () => {
+    void navigator.clipboard.writeText(wallet.accountNumber);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleFund = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +95,6 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
     setFunding(true);
     try {
       const res = await apiRequest<{
-        mode: 'paystack' | 'simulated';
         status: 'pending' | 'successful';
         reference: string;
         amountFormatted: string;
@@ -70,47 +105,50 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
         body: {
           amountKobo,
           narration,
-          mode,
+          mode: 'paystack',
           callbackUrl: `${window.location.origin}/dashboard`,
         },
       });
 
-      if (res.data.status === 'pending' && res.data.authorizationUrl) {
+      if (res.data.authorizationUrl) {
         setPendingPaystackUrl(res.data.authorizationUrl);
         setVerifyingRef(res.data.reference);
+        window.open(res.data.authorizationUrl, '_blank', 'noopener,noreferrer');
         setSuccessMsg(
-          `Paystack checkout initialized (Reference: ${res.data.reference}). Complete checkout, then click "Verify Paystack Payment" below.`,
+          'Paystack checkout opened in a new tab. Once you complete payment, click "Confirm Deposit" below.',
         );
       } else {
-        setSuccessMsg(
-          `Funded ${res.data.amountFormatted} successfully! (Reference: ${res.data.reference})`,
-        );
+        setSuccessMsg(`Funded ${res.data.amountFormatted} successfully!`);
         await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Funding failed');
+      setError(err instanceof Error ? err.message : 'Unable to start payment');
     } finally {
       setFunding(false);
     }
   };
 
-  const handleVerifyPaystack = async () => {
-    if (!verifyingRef.trim()) return;
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(newPin)) {
+      setError('Transfer PIN must be 4 digits');
+      return;
+    }
+    setSavingPin(true);
     setError(null);
-    setFunding(true);
     try {
-      const res = await apiRequest<{ reference: string; amountFormatted: string }>(
-        `/v1/wallets/fund/verify/${encodeURIComponent(verifyingRef.trim())}`,
-      );
-      setSuccessMsg(
-        `Paystack payment ${res.data.reference} verified! ${res.data.amountFormatted} credited.`,
-      );
-      setPendingPaystackUrl(null);
-      await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
+      await apiRequest('/v1/users/me/pin', {
+        method: 'POST',
+        body: { pin: newPin },
+      });
+      await onRefreshUser();
+      setShowPinModal(false);
+      setNewPin('');
+      setSuccessMsg('Your 4-digit Transfer PIN has been saved.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed');
+      setError(err instanceof Error ? err.message : 'Failed to save PIN');
     } finally {
-      setFunding(false);
+      setSavingPin(false);
     }
   };
 
@@ -118,57 +156,88 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Wallet Dashboard</h1>
-          <p style={{ fontSize: '0.9rem' }}>
-            Welcome back, <strong>{user.firstName} {user.lastName}</strong> ({user.email})
+          <h1 className="page-title">Hello, {user.firstName}</h1>
+          <p style={{ fontSize: '0.92rem' }}>
+            Here is an overview of your NGN wallet and recent activity.
           </p>
         </div>
-        <Link to="/transfers" className="btn btn-teal">
-          Send Money &rarr;
-        </Link>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setShowPinModal(true)}
+          >
+            {user.hasPin ? 'Change Transfer PIN' : 'Set 4-Digit PIN'}
+          </button>
+          <Link to="/transfers" className="btn btn-teal">
+            Send Money &rarr;
+          </Link>
+        </div>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Available Balance</div>
-          <div className="stat-value">{wallet.balanceFormatted}</div>
-          <div className="stat-sub">
-            {wallet.balanceKobo.toLocaleString()} kobo ({wallet.currency})
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Wallet Account Number</div>
-          <div className="stat-value mono" style={{ fontSize: '1.45rem' }}>
-            {wallet.accountNumber}
-          </div>
-          <div className="stat-sub">Share with others to receive instant transfers</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Double-Entry Ledger Check</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>
-            <span className={`badge ${wallet.isReconciled !== false ? 'badge-active' : 'badge-blocked'}`}>
-              {wallet.isReconciled !== false ? 'Reconciled (Balanced)' : 'Mismatch'}
-            </span>
-          </div>
-          <div className="stat-sub">Sum of credits minus debits matches wallet balance</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Account Status</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>
+      <div className="wallet-hero-grid">
+        <div className="wallet-card">
+          <div className="wallet-card-top">
+            <div>
+              <div className="wallet-card-label">Available Balance</div>
+              <div className="wallet-card-balance">{wallet.balanceFormatted}</div>
+            </div>
             <span className={`badge badge-${user.status}`}>{user.status}</span>
           </div>
-          <div className="stat-sub">
-            {user.blockedReason ? `Reason: ${user.blockedReason}` : 'Karma verified & active'}
+
+          <div className="wallet-card-bottom">
+            <div>
+              <div className="wallet-card-label" style={{ marginBottom: '0.2rem' }}>
+                Lendsqr Account Number
+              </div>
+              <div className="account-pill">
+                <span className="mono" style={{ color: '#fff', fontSize: '1.05rem' }}>
+                  {wallet.accountNumber}
+                </span>
+                <button type="button" className="copy-btn" onClick={handleCopyAccount}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <div className="wallet-card-label" style={{ marginBottom: '0.2rem' }}>
+                Account Holder
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                {user.firstName} {user.lastName}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div>
+            <div className="stat-label">Transfer Security</div>
+            <div className="stat-value" style={{ fontSize: '1.25rem', marginBottom: '0.4rem' }}>
+              {user.hasPin ? '4-Digit PIN Active' : 'PIN Not Set Yet'}
+            </div>
+            <p className="stat-sub">
+              {user.hasPin
+                ? 'Your transfers are protected by your 4-digit security PIN.'
+                : 'Set a 4-digit transfer PIN to authorize outgoing payments.'}
+            </p>
+          </div>
+          <div style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${user.hasPin ? 'btn-outline' : 'btn-navy'}`}
+              onClick={() => setShowPinModal(true)}
+            >
+              {user.hasPin ? 'Update 4-Digit PIN' : 'Create 4-Digit PIN'}
+            </button>
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-header">
-          <h2 className="panel-title">Fund Your Wallet</h2>
+          <h2 className="panel-title">Add Money</h2>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -177,7 +246,7 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
         <form onSubmit={handleFund}>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Amount in Naira (₦)</label>
+              <label className="form-label">Amount (₦)</label>
               <input
                 type="number"
                 min="100"
@@ -187,39 +256,35 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
                 onChange={(e) => setAmountNaira(e.target.value)}
                 required
               />
-              <div className="form-hint">
-                Automatically sent to the API as{' '}
-                <strong>{(Number(amountNaira || 0) * 100).toLocaleString()} kobo</strong>
+              <div className="quick-amounts">
+                {['1000', '5000', '10000', '25000', '50000'].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    className="chip-btn"
+                    onClick={() => setAmountNaira(amt)}
+                  >
+                    ₦{Number(amt).toLocaleString()}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Funding Channel</label>
-              <select
+              <label className="form-label">Description (Optional)</label>
+              <input
+                type="text"
                 className="form-input"
-                value={mode}
-                onChange={(e) => setMode(e.target.value as 'simulated' | 'paystack')}
-              >
-                <option value="simulated">Instant Simulated Deposit (Immediate Credit)</option>
-                <option value="paystack">Paystack Checkout (Test Mode)</option>
-              </select>
+                value={narration}
+                onChange={(e) => setNarration(e.target.value)}
+                placeholder="e.g. Personal savings"
+              />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Narration</label>
-            <input
-              type="text"
-              className="form-input"
-              value={narration}
-              onChange={(e) => setNarration(e.target.value)}
-              placeholder="e.g. Initial wallet funding"
-            />
           </div>
 
           <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
             <button type="submit" className="btn btn-teal" disabled={funding}>
-              {funding ? 'Processing...' : mode === 'paystack' ? 'Initialize Paystack Checkout' : 'Fund Wallet Instantly'}
+              {funding ? 'Please wait...' : 'Proceed to Paystack'}
             </button>
 
             {pendingPaystackUrl && (
@@ -230,15 +295,15 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
                   rel="noreferrer"
                   className="btn btn-navy"
                 >
-                  Open Paystack Checkout Page &rarr;
+                  Open Checkout &rarr;
                 </a>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  onClick={handleVerifyPaystack}
+                  onClick={() => void verifyReference(verifyingRef)}
                   disabled={funding}
                 >
-                  Verify Paystack Payment ({verifyingRef})
+                  Confirm Deposit
                 </button>
               </>
             )}
@@ -248,24 +313,23 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
 
       <div className="panel">
         <div className="panel-header">
-          <h2 className="panel-title">Recent Transactions</h2>
+          <h2 className="panel-title">Recent Activity</h2>
           <Link to="/transactions" style={{ fontSize: '0.88rem', fontWeight: 600 }}>
-            View All & Ledger Breakdown &rarr;
+            See All &rarr;
           </Link>
         </div>
 
         {recentTxs.length === 0 ? (
           <p style={{ fontSize: '0.9rem' }}>
-            No transactions yet. Fund your wallet above to get started.
+            No transactions yet. Add money to your wallet above to get started.
           </p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th>Description</th>
                   <th>Reference</th>
-                  <th>Type</th>
-                  <th>Direction</th>
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Date</th>
@@ -274,12 +338,16 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
               <tbody>
                 {recentTxs.map((tx) => (
                   <tr key={tx.id}>
-                    <td className="mono">{tx.reference}</td>
-                    <td style={{ textTransform: 'capitalize' }}>{tx.type}</td>
-                    <td>
-                      <span className={`badge badge-${tx.direction}`}>{tx.direction}</span>
-                    </td>
                     <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
+                      {tx.narration || (tx.type === 'funding' ? 'Wallet Deposit' : 'Transfer')}
+                    </td>
+                    <td className="mono">{tx.reference}</td>
+                    <td
+                      style={{
+                        fontWeight: 700,
+                        color: tx.direction === 'outbound' ? 'var(--navy)' : '#188234',
+                      }}
+                    >
                       {tx.direction === 'outbound' ? '-' : '+'}
                       {tx.amountFormatted}
                     </td>
@@ -294,6 +362,53 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
           </div>
         )}
       </div>
+
+      {showPinModal && (
+        <div className="modal-backdrop" onClick={() => setShowPinModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="panel-title" style={{ marginBottom: '0.35rem' }}>
+              {user.hasPin ? 'Change Your Transfer PIN' : 'Set 4-Digit Transfer PIN'}
+            </h3>
+            <p style={{ fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+              This 4-digit PIN will be required whenever you send money from your wallet.
+            </p>
+
+            <form onSubmit={handleSavePin}>
+              <div className="form-group">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  pattern="\d{4}"
+                  className="form-input pin-input-box"
+                  placeholder="••••"
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowPinModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-teal"
+                  disabled={savingPin || newPin.length !== 4}
+                >
+                  {savingPin ? 'Saving...' : 'Save PIN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

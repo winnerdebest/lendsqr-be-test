@@ -18,6 +18,19 @@ adminRouter.get(
   }),
 );
 
+adminRouter.get(
+  '/transactions',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const transactions = await adminService.listAllTransactions();
+    sendSuccess(
+      res,
+      { transactions, count: transactions.length },
+      'All transactions retrieved successfully',
+      200,
+    );
+  }),
+);
+
 adminRouter.patch(
   '/users/:id/block',
   validateRequest(userStatusActionSchema),

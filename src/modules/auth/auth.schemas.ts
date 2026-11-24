@@ -39,5 +39,13 @@ export const loginSchema = z.object({
     .min(1, 'Password is required'),
 });
 
+export const setPinSchema = z.object({
+  pin: z
+    .string({ required_error: '4-digit transfer PIN is required' })
+    .trim()
+    .regex(/^\d{4}$/, 'Transfer PIN must be exactly 4 digits'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type SetPinInput = z.infer<typeof setPinSchema>;

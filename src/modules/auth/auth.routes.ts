@@ -3,7 +3,7 @@ import { requireAuth } from '../../common/middleware/auth';
 import { validateRequest } from '../../common/middleware/validate';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { sendSuccess } from '../../common/utils/response';
-import { loginSchema, registerSchema } from './auth.schemas';
+import { loginSchema, registerSchema, setPinSchema } from './auth.schemas';
 import { authService } from './auth.service';
 
 export const authRouter = Router();
@@ -33,5 +33,15 @@ usersRouter.get(
   asyncHandler(async (req: Request, res: Response) => {
     const profile = await authService.getProfile(req.user!.userId);
     sendSuccess(res, profile, 'User profile retrieved successfully', 200);
+  }),
+);
+
+usersRouter.post(
+  '/me/pin',
+  requireAuth,
+  validateRequest(setPinSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const profile = await authService.setTransferPin(req.user!.userId, req.body.pin);
+    sendSuccess(res, profile, 'Transfer PIN saved successfully', 200);
   }),
 );

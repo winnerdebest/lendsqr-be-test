@@ -29,7 +29,7 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
       );
       saveToken(res.data.accessToken);
       onAuthSuccess(res.data.user);
-      navigate('/dashboard');
+      navigate(res.data.user.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -46,44 +46,35 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
         </div>
 
         <div className="auth-hero-box">
-          <h2>Accurate, safe & always available money movement.</h2>
+          <h2>Fast, secure & reliable payments for everyday life.</h2>
           <p>
-            Wallet service engineered with double-entry ledger reconciliation, pessimistic
-            row-level locking, idempotency replay protection, and Adjutor Karma screening.
+            Fund your NGN wallet in seconds, send money seamlessly to any Lendsqr account,
+            and track every payment in real time.
           </p>
           <div className="feature-pills">
             <div className="feature-pill">
               <span className="feature-dot" />
-              <span>
-                <strong>Row-Locked Concurrency:</strong> Zero double-spend under parallel requests
-              </span>
+              <span>Instant transfers to any Lendsqr account number or email</span>
             </div>
             <div className="feature-pill">
               <span className="feature-dot" />
-              <span>
-                <strong>Double-Entry Ledger:</strong> Every kobo reconciled across debit & credit
-              </span>
+              <span>4-digit Transfer PIN security on every outgoing payment</span>
             </div>
             <div className="feature-pill">
               <span className="feature-dot" />
-              <span>
-                <strong>Lendsqr Karma & Paystack:</strong> Live blacklist screening & funding
-              </span>
+              <span>Seamless card & bank funding powered by Paystack</span>
             </div>
           </div>
         </div>
 
-        <div style={{ fontSize: '0.84rem', display: 'flex', gap: '1.25rem' }}>
-          <Link to="/admin">Open Back-Office Admin Console &rarr;</Link>
-          <a href="/docs" target="_blank" rel="noreferrer">
-            Swagger API Docs &rarr;
-          </a>
+        <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)' }}>
+          &copy; {new Date().getFullYear()} Lendsqr Wallet
         </div>
       </aside>
 
       <main className="auth-main">
         <h1 className="auth-title">Welcome!</h1>
-        <p className="auth-subtitle">Enter details to login to your Lendsqr wallet.</p>
+        <p className="auth-subtitle">Enter your details to sign in to your wallet.</p>
 
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -93,7 +84,7 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
             <input
               type="email"
               className="form-input"
-              placeholder="ada.obi@lendsqr.com"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -118,12 +109,12 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
             style={{ marginTop: '0.5rem' }}
             disabled={loading}
           >
-            {loading ? 'Logging in...' : 'Log In'}
+            {loading ? 'Signing in...' : 'Log In'}
           </button>
         </form>
 
-        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
-          Don&apos;t have a wallet account yet?{' '}
+        <p style={{ marginTop: '1.5rem', fontSize: '0.92rem' }}>
+          New to Lendsqr Wallet?{' '}
           <Link to="/register" style={{ fontWeight: 600 }}>
             Create an Account
           </Link>

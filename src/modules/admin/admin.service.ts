@@ -1,8 +1,25 @@
 import { AppError } from '../../common/errors/AppError';
-import { BlacklistRecord } from '../../common/types/entities';
+import { BlacklistRecord, TransactionRecord } from '../../common/types/entities';
+import { formatKoboToNaira, toKoboInt } from '../../common/utils/money';
+import { getDb } from '../../db/knex';
 import { BlacklistService, blacklistService } from '../blacklist/blacklist.service';
 import { UsersRepository, UserWithWalletDTO, usersRepository } from '../users/users.repository';
 import { AddBlacklistInput, UserStatusActionInput } from './admin.schemas';
+
+export interface AdminTransactionDTO {
+  id: string;
+  reference: string;
+  type: 'funding' | 'transfer';
+  status: 'pending' | 'successful' | 'failed';
+  amountKobo: number;
+  amountFormatted: string;
+  currency: string;
+  narration: string | null;
+  sourceWalletId: string | null;
+  destinationWalletId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
 
 export class AdminService {
   constructor(
@@ -60,6 +77,31 @@ export class AdminService {
 
   public async listBlacklist(): Promise<BlacklistRecord[]> {
     return this.blacklist.listBlacklist();
+  }
+
+  public async listAllTransactions(): Promise<AdminTransactionDTO[]> {
+    const db = getDb();
+    const rows = await db<TransactionRecord>('transactions')
+      .orderBy('created_at', 'desc')
+      .limit(200);
+
+    return rows.map((tx) => {
+      const amountKobo = toKoboInt(tx.amount);
+      return {
+        id: tx.id,
+        reference: tx.reference,
+        type: tx.type,
+        status: tx.status,
+        amountKobo,
+        amountFormatted: formatKoboToNaira(amountKobo),
+        currency: tx.currency,
+        narration: tx.narration,
+        sourceWalletId: tx.source_wallet_id,
+        destinationWalletId: tx.destination_wallet_id,
+        metadata: tx.metadata,
+        createdAt: tx.created_at,
+      };
+    });
   }
 }
 

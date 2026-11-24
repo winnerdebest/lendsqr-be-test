@@ -15,10 +15,32 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   role: 'user' | 'admin';
+  hasPin: boolean;
   status: 'active' | 'blocked';
   blockedReason: string | null;
   createdAt: string;
   wallet: WalletSummary;
+}
+
+export interface AdminTransactionItem {
+  id: string;
+  reference: string;
+  type: 'funding' | 'transfer';
+  status: 'pending' | 'successful' | 'failed';
+  amountKobo: number;
+  amountFormatted: string;
+  currency: string;
+  narration: string | null;
+  sourceWalletId: string | null;
+  destinationWalletId: string | null;
+  metadata: {
+    senderEmail?: string;
+    senderAccountNumber?: string;
+    recipientEmail?: string;
+    recipientAccountNumber?: string;
+    provider?: string;
+  } | null;
+  createdAt: string;
 }
 
 export interface TransactionItem {

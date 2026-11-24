@@ -25,6 +25,11 @@ export const createTransferSchema = z.object({
       `Maximum transfer amount is ${APP_CONSTANTS.MAX_TRANSACTION_AMOUNT_KOBO} kobo`,
     ),
   narration: z.string().trim().max(250).optional().default('Wallet to wallet transfer'),
+  pin: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, 'Transfer PIN must be 4 digits')
+    .optional(),
 });
 
 export type CreateTransferInput = z.infer<typeof createTransferSchema>;

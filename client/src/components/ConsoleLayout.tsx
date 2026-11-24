@@ -19,7 +19,7 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
 
   const initials = user
     ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
-    : 'AD';
+    : 'LS';
 
   return (
     <div className="console-shell">
@@ -30,15 +30,6 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
         </Link>
 
         <div className="topbar-right">
-          <a
-            href="/docs"
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-outline btn-sm"
-          >
-            Swagger API Docs
-          </a>
-
           {user ? (
             <>
               <div className="user-chip">
@@ -66,41 +57,39 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
       <div className="console-body">
         <aside className="sidebar">
           <div>
-            <div className="nav-section-label">Customer Wallet</div>
+            <div className="nav-section-label">Wallet Menu</div>
             <NavLink
               to="/dashboard"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
-              Dashboard & Fund
+              Dashboard
             </NavLink>
             <NavLink
               to="/transfers"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
-              Transfer Money
+              Transfers
             </NavLink>
             <NavLink
               to="/transactions"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
-              Transactions & Ledger
+              Transactions
             </NavLink>
 
-            <div className="nav-section-label" style={{ marginTop: '1rem' }}>
-              Back Office
-            </div>
-            <NavLink
-              to="/admin"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Admin & Blacklist
-            </NavLink>
-          </div>
-
-          <div style={{ padding: '1rem 1.75rem', fontSize: '0.78rem' }}>
-            <a href="/health" target="_blank" rel="noreferrer">
-              System Health (/health) &rarr;
-            </a>
+            {user?.role === 'admin' && (
+              <>
+                <div className="nav-section-label" style={{ marginTop: '1rem' }}>
+                  Administration
+                </div>
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                >
+                  User & Blacklist Console
+                </NavLink>
+              </>
+            )}
           </div>
         </aside>
 

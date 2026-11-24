@@ -13,6 +13,7 @@ export interface UserRecord {
   first_name: string;
   last_name: string;
   password_hash: string;
+  pin_hash?: string | null;
   role: UserRole;
   status: UserStatus;
   blocked_reason: string | null;

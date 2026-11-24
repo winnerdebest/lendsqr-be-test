@@ -64,6 +64,12 @@ export async function runMigrations(): Promise<void> {
         table.string('role', 20).notNullable().defaultTo('user');
       });
     }
+    const hasPinColumn = await db.schema.hasColumn('users', 'pin_hash');
+    if (!hasPinColumn) {
+      await db.schema.alterTable('users', (table) => {
+        table.string('pin_hash', 255).nullable();
+      });
+    }
   }
   await ensureDefaultAdminSeeded();
 }
