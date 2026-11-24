@@ -57,36 +57,36 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
       <div className="console-body">
         <aside className="sidebar">
           <div>
-            <div className="nav-section-label">Wallet Menu</div>
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Dashboard
-            </NavLink>
-            <NavLink
-              to="/transfers"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Send Money
-            </NavLink>
-            <NavLink
-              to="/transactions"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Transactions
-            </NavLink>
-
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' ? (
               <>
-                <div className="nav-section-label" style={{ marginTop: '1rem' }}>
-                  Administration
-                </div>
+                <div className="nav-section-label">Back-Office Console</div>
                 <NavLink
                   to="/admin"
                   className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 >
-                  Admin Console
+                  Overview & Cashflow
+                </NavLink>
+              </>
+            ) : (
+              <>
+                <div className="nav-section-label">Wallet Menu</div>
+                <NavLink
+                  to="/dashboard"
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                >
+                  Dashboard
+                </NavLink>
+                <NavLink
+                  to="/transfers"
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                >
+                  Send Money
+                </NavLink>
+                <NavLink
+                  to="/transactions"
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                >
+                  Transactions
                 </NavLink>
               </>
             )}
@@ -96,7 +96,7 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
         <main className="content-area">{children}</main>
       </div>
 
-      {user && (
+      {user && user.role !== 'admin' && (
         <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
           <NavLink
             to="/dashboard"
@@ -119,15 +119,6 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
             <span className="mobile-nav-icon">&#9776;</span>
             <span>History</span>
           </NavLink>
-          {user.role === 'admin' && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-            >
-              <span className="mobile-nav-icon">&#9881;</span>
-              <span>Admin</span>
-            </NavLink>
-          )}
         </nav>
       )}
     </div>

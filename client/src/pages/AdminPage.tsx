@@ -14,6 +14,12 @@ interface AdminPageProps {
   onAuthSuccess: (user: UserProfile) => void;
 }
 
+function formatKobo(kobo: number): string {
+  const naira = Math.floor(Math.abs(kobo) / 100);
+  const rem = Math.abs(kobo) % 100;
+  return `₦${naira.toLocaleString('en-NG')}.${rem.toString().padStart(2, '0')}`;
+}
+
 export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
   const { showToast } = useToast();
   const isAdmin = user?.role === 'admin';
@@ -246,16 +252,32 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
     }
   };
 
-  const customerCount = users.filter((u) => u.role !== 'admin').length;
-  const activeCount = users.filter((u) => u.role !== 'admin' && u.status === 'active').length;
+  const customerUsers = users.filter((u) => u.role !== 'admin');
+  const customerCount = customerUsers.length;
+  const activeCount = customerUsers.filter((u) => u.status === 'active').length;
+  const blockedCount = customerUsers.filter((u) => u.status === 'blocked').length;
+
+  // Cashflow & Liquidity Calculations (in kobo)
+  const successfulTxs = transactions.filter((t) => t.status === 'successful');
+  const totalDepositsKobo = successfulTxs
+    .filter((t) => t.type === 'funding')
+    .reduce((sum, t) => sum + t.amountKobo, 0);
+  const totalTransfersKobo = successfulTxs
+    .filter((t) => t.type === 'transfer')
+    .reduce((sum, t) => sum + t.amountKobo, 0);
+  const totalCashflowKobo = totalDepositsKobo + totalTransfersKobo;
+  const totalWalletFloatKobo = customerUsers.reduce(
+    (sum, u) => sum + (u.wallet?.balanceKobo || 0),
+    0,
+  );
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Administration Console</h1>
+          <h1 className="page-title">Platform Cashflow & Administration</h1>
           <p style={{ fontSize: '0.92rem' }}>
-            Manage customer accounts, view platform transactions, and update the blacklist.
+            Real-time overview of total money movement, customer wallets, and compliance controls.
           </p>
         </div>
         <button
@@ -263,25 +285,82 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
           className="btn btn-outline btn-sm"
           onClick={() => void loadAdminData()}
         >
-          Refresh
+          Refresh Metrics
         </button>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Total Customers</div>
-          <div className="stat-value">{customerCount}</div>
-          <div className="stat-sub">{activeCount} active accounts</div>
+      <div className="wallet-hero-grid">
+        <div className="wallet-card">
+          <div className="wallet-card-top">
+            <div>
+              <div className="wallet-card-label">Total Platform Cashflow Processed</div>
+              <div className="wallet-card-balance">{formatKobo(totalCashflowKobo)}</div>
+            </div>
+            <span className="badge badge-active">
+              {successfulTxs.length} Settled Transactions
+            </span>
+          </div>
+
+          <div className="wallet-card-bottom">
+            <div>
+              <div className="wallet-card-label" style={{ marginBottom: '0.2rem' }}>
+                Total Deposits (Inflow)
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--teal)' }}>
+                {formatKobo(totalDepositsKobo)}
+              </div>
+            </div>
+
+            <div>
+              <div className="wallet-card-label" style={{ marginBottom: '0.2rem' }}>
+                Peer-to-Peer Transfers
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#fff' }}>
+                {formatKobo(totalTransfersKobo)}
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <div className="wallet-card-label" style={{ marginBottom: '0.2rem' }}>
+                Customer Wallet Float Held
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#fff' }}>
+                {formatKobo(totalWalletFloatKobo)}
+              </div>
+            </div>
+          </div>
         </div>
+
         <div className="stat-card">
-          <div className="stat-label">Total Transactions</div>
-          <div className="stat-value">{transactions.length}</div>
-          <div className="stat-sub">Read-only platform audit view</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Blacklisted Identities</div>
-          <div className="stat-value">{blacklist.length}</div>
-          <div className="stat-sub">Blocked from onboarding</div>
+          <div>
+            <div className="stat-label">Customer Accounts & Compliance</div>
+            <div className="stat-value" style={{ marginBottom: '0.35rem' }}>
+              {customerCount} Customers
+            </div>
+            <p className="stat-sub">
+              <strong>{activeCount}</strong> active &middot;{' '}
+              <strong style={{ color: blockedCount > 0 ? 'var(--danger)' : 'inherit' }}>
+                {blockedCount}
+              </strong>{' '}
+              blocked &middot; <strong>{blacklist.length}</strong> blacklisted identities
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setActiveTab('users')}
+            >
+              Manage Customers
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setActiveTab('blacklist')}
+            >
+              Manage Blacklist
+            </button>
+          </div>
         </div>
       </div>
 
@@ -291,7 +370,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
           className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          Customers ({users.length})
+          Customers ({customerCount})
         </button>
         <button
           type="button"
@@ -332,7 +411,7 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
+                  {customerUsers.map((u) => (
                     <tr key={u.id}>
                       <td style={{ fontWeight: 600, color: 'var(--navy)' }}>
                         {u.firstName} {u.lastName}
@@ -345,21 +424,15 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
                         <span className={`badge badge-${u.status}`}>{u.status}</span>
                       </td>
                       <td>
-                        {u.role === 'admin' ? (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--slate)' }}>
-                            Admin
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${
-                              u.status === 'active' ? 'btn-danger' : 'btn-success'
-                            }`}
-                            onClick={() => void handleToggleUserStatus(u)}
-                          >
-                            {u.status === 'active' ? 'Block' : 'Unblock'}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${
+                            u.status === 'active' ? 'btn-danger' : 'btn-success'
+                          }`}
+                          onClick={() => void handleToggleUserStatus(u)}
+                        >
+                          {u.status === 'active' ? 'Block' : 'Unblock'}
+                        </button>
                       </td>
                     </tr>
                   ))}
