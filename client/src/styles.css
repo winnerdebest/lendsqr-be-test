@@ -725,3 +725,139 @@ th {
   font-size: 0.84rem;
   color: var(--navy);
 }
+
+/* Recipient Name Inquiry Pill */
+.recipient-lookup-card {
+  margin-top: 0.55rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.recipient-verified {
+  background: rgba(57, 205, 98, 0.1);
+  border: 1px solid rgba(57, 205, 98, 0.3);
+  color: #136B29;
+}
+
+.recipient-error {
+  background: rgba(228, 3, 59, 0.07);
+  border: 1px solid rgba(228, 3, 59, 0.22);
+  color: var(--danger);
+}
+
+.recipient-checking {
+  background: rgba(33, 63, 125, 0.05);
+  border: 1px solid rgba(33, 63, 125, 0.12);
+  color: var(--slate);
+}
+
+/* Floating Toast Stack */
+.toast-stack {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 390px;
+  width: calc(100vw - 2rem);
+  pointer-events: none;
+}
+
+.toast-card {
+  pointer-events: auto;
+  background: var(--white);
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  box-shadow: 0 14px 36px rgba(15, 29, 58, 0.16);
+  border-left: 5px solid var(--teal);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-success {
+  border-left-color: var(--success);
+}
+
+.toast-error {
+  border-left-color: var(--danger);
+}
+
+.toast-info {
+  border-left-color: var(--teal);
+}
+
+.toast-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.toast-success .toast-icon {
+  background: rgba(57, 205, 98, 0.16);
+  color: #157A2E;
+}
+
+.toast-error .toast-icon {
+  background: rgba(228, 3, 59, 0.14);
+  color: var(--danger);
+}
+
+.toast-info .toast-icon {
+  background: rgba(57, 205, 204, 0.18);
+  color: #0D5959;
+}
+
+.toast-body {
+  flex: 1;
+}
+
+.toast-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--navy);
+  margin-bottom: 0.15rem;
+}
+
+.toast-msg {
+  font-size: 0.83rem;
+  color: var(--slate);
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #98A2B3;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+

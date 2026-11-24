@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiRequest, TransactionDetail, TransactionItem } from '../api';
 
-export function TransactionsPage() {
+export function TransactionsPage({ liveTick = 0 }: { liveTick?: number }) {
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<TransactionDetail | null>(null);
@@ -24,7 +24,7 @@ export function TransactionsPage() {
 
   useEffect(() => {
     void loadTransactions();
-  }, []);
+  }, [liveTick]);
 
   const handleViewReceipt = async (reference: string) => {
     setError(null);

@@ -8,6 +8,7 @@ import {
   WalletRecord,
 } from '../../common/types/entities';
 import { formatKoboToNaira, generateReference, toKoboInt } from '../../common/utils/money';
+import { realtimeHub } from '../../common/utils/realtime';
 import { getDb } from '../../db/knex';
 import { PaystackClient, paystackClient } from './paystack.client';
 import { FundWalletInput } from './wallets.schemas';
@@ -258,7 +259,7 @@ export class WalletsService {
     mode: 'paystack' | 'simulated',
     extraMetadata: Record<string, unknown> = {},
   ): Promise<FundingResultDTO> {
-    return this.db.transaction(async (trx) => {
+    const result = await this.db.transaction(async (trx) => {
       const tx = await trx<TransactionRecord>('transactions')
         .where('reference', reference)
         .forUpdate()
@@ -282,18 +283,22 @@ export class WalletsService {
         const currentBalance = toKoboInt(wallet.balance);
         const amount = toKoboInt(tx.amount);
         return {
-          mode,
-          status: 'successful',
-          reference: tx.reference,
-          amountKobo: amount,
-          amountFormatted: formatKoboToNaira(amount),
-          narration: tx.narration || 'Wallet funding deposit',
-          wallet: {
-            id: wallet.id,
-            accountNumber: wallet.account_number,
-            balanceBeforeKobo: currentBalance - amount,
-            balanceAfterKobo: currentBalance,
-            balanceFormatted: formatKoboToNaira(currentBalance),
+          alreadySettled: true,
+          userId: wallet.user_id,
+          dto: {
+            mode,
+            status: 'successful' as const,
+            reference: tx.reference,
+            amountKobo: amount,
+            amountFormatted: formatKoboToNaira(amount),
+            narration: tx.narration || 'Wallet funding deposit',
+            wallet: {
+              id: wallet.id,
+              accountNumber: wallet.account_number,
+              balanceBeforeKobo: currentBalance - amount,
+              balanceAfterKobo: currentBalance,
+              balanceFormatted: formatKoboToNaira(currentBalance),
+            },
           },
         };
       }
@@ -329,21 +334,37 @@ export class WalletsService {
       });
 
       return {
-        mode,
-        status: 'successful',
-        reference: tx.reference,
-        amountKobo: creditAmount,
-        amountFormatted: formatKoboToNaira(creditAmount),
-        narration: tx.narration || 'Wallet funding deposit',
-        wallet: {
-          id: wallet.id,
-          accountNumber: wallet.account_number,
-          balanceBeforeKobo: balanceBefore,
-          balanceAfterKobo: balanceAfter,
-          balanceFormatted: formatKoboToNaira(balanceAfter),
+        alreadySettled: false,
+        userId: wallet.user_id,
+        dto: {
+          mode,
+          status: 'successful' as const,
+          reference: tx.reference,
+          amountKobo: creditAmount,
+          amountFormatted: formatKoboToNaira(creditAmount),
+          narration: tx.narration || 'Wallet funding deposit',
+          wallet: {
+            id: wallet.id,
+            accountNumber: wallet.account_number,
+            balanceBeforeKobo: balanceBefore,
+            balanceAfterKobo: balanceAfter,
+            balanceFormatted: formatKoboToNaira(balanceAfter),
+          },
         },
       };
     });
+
+    if (!result.alreadySettled) {
+      realtimeHub.notifyUser(result.userId, {
+        type: 'wallet_funded',
+        reference: result.dto.reference,
+        amountFormatted: result.dto.amountFormatted,
+        narration: result.dto.narration,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return result.dto;
   }
 }
 

@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { apiRequest, UserProfile } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 interface TransfersPageProps {
   user: UserProfile;
   onRefreshUser: () => Promise<void>;
+}
+
+interface ResolvedRecipient {
+  accountName: string;
+  accountNumber: string;
+  email: string;
+  isSelf: boolean;
 }
 
 function generateIdempotencyKey(): string {
@@ -11,7 +19,12 @@ function generateIdempotencyKey(): string {
 }
 
 export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
+  const { showToast } = useToast();
   const [recipientIdentifier, setRecipientIdentifier] = useState('');
+  const [resolvedRecipient, setResolvedRecipient] = useState<ResolvedRecipient | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
   const [amountNaira, setAmountNaira] = useState('');
   const [narration, setNarration] = useState('');
   const [showPinModal, setShowPinModal] = useState(false);
@@ -25,10 +38,63 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
     sender: { balanceFormatted: string };
   } | null>(null);
 
+  // Automatic Name Inquiry as user enters 10-digit account number or email
+  useEffect(() => {
+    const clean = recipientIdentifier.trim();
+    const looksLikeAccountOrEmail =
+      /^\d{10}$/.test(clean) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
+
+    if (!looksLikeAccountOrEmail) {
+      setResolvedRecipient(null);
+      setResolveError(null);
+      setResolving(false);
+      return;
+    }
+
+    let cancelled = false;
+    setResolving(true);
+    setResolveError(null);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiRequest<ResolvedRecipient>(
+          `/v1/wallets/resolve?identifier=${encodeURIComponent(clean)}`,
+        );
+        if (cancelled) return;
+        if (res.data.isSelf) {
+          setResolvedRecipient(null);
+          setResolveError('You cannot transfer money to your own wallet');
+        } else {
+          setResolvedRecipient(res.data);
+          setResolveError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedRecipient(null);
+          setResolveError('No Lendsqr wallet found for this account number or email');
+        }
+      } finally {
+        if (!cancelled) {
+          setResolving(false);
+        }
+      }
+    }, 320);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [recipientIdentifier]);
+
   const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setReceipt(null);
+
+    if (!resolvedRecipient) {
+      setError(resolveError || 'Please enter a valid recipient account number or email');
+      return;
+    }
 
     const parsedNaira = Number(amountNaira);
     if (Number.isNaN(parsedNaira) || parsedNaira < 100) {
@@ -58,7 +124,6 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
     setError(null);
 
     try {
-      // If the user has not set a PIN yet, save this 4-digit PIN as their account PIN first
       if (!user.hasPin) {
         await apiRequest('/v1/users/me/pin', {
           method: 'POST',
@@ -85,14 +150,22 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
 
       setShowPinModal(false);
       setReceipt(res.data);
+      showToast(
+        'Transfer Successful',
+        `Sent ${res.data.amountFormatted} to ${res.data.recipient.name} (${res.data.recipient.accountNumber}).`,
+        'success',
+      );
       setRecipientIdentifier('');
+      setResolvedRecipient(null);
       setAmountNaira('');
       setNarration('');
       setPin('');
       await onRefreshUser();
     } catch (err) {
       setShowPinModal(false);
-      setError(err instanceof Error ? err.message : 'Transfer failed');
+      const msg = err instanceof Error ? err.message : 'Transfer failed';
+      setError(msg);
+      showToast('Transfer Failed', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -145,11 +218,38 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
             <input
               type="text"
               className="form-input"
-              placeholder="Enter 10-digit account number or email"
+              placeholder="Enter 10-digit account number (e.g. 9012345678) or email"
               value={recipientIdentifier}
               onChange={(e) => setRecipientIdentifier(e.target.value)}
               required
             />
+
+            {resolving && (
+              <div className="recipient-lookup-card recipient-checking">
+                <span>Verifying account name...</span>
+              </div>
+            )}
+
+            {!resolving && resolvedRecipient && (
+              <div className="recipient-lookup-card recipient-verified">
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                    ✓ {resolvedRecipient.accountName}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>
+                    Account No: {resolvedRecipient.accountNumber} &middot;{' '}
+                    {resolvedRecipient.email}
+                  </div>
+                </div>
+                <span className="badge badge-active">Verified</span>
+              </div>
+            )}
+
+            {!resolving && resolveError && (
+              <div className="recipient-lookup-card recipient-error">
+                <span>{resolveError}</span>
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -193,23 +293,31 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
             type="submit"
             className="btn btn-teal btn-block"
             style={{ marginTop: '0.5rem' }}
-            disabled={loading}
+            disabled={loading || resolving || !resolvedRecipient}
           >
-            Continue
+            {resolvedRecipient
+              ? `Continue to Pay ${resolvedRecipient.accountName}`
+              : 'Continue'}
           </button>
         </form>
       </div>
 
-      {showPinModal && (
+      {showPinModal && resolvedRecipient && (
         <div className="modal-backdrop" onClick={() => setShowPinModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="panel-title" style={{ marginBottom: '0.35rem' }}>
               {user.hasPin ? 'Enter Transfer PIN' : 'Create & Confirm 4-Digit Transfer PIN'}
             </h3>
-            <p style={{ fontSize: '0.88rem', marginBottom: '1.15rem' }}>
-              {user.hasPin
-                ? `Enter your 4-digit PIN to authorize sending ₦${Number(amountNaira).toLocaleString()} to ${recipientIdentifier}.`
-                : `Set a 4-digit security PIN to authorize sending ₦${Number(amountNaira).toLocaleString()} to ${recipientIdentifier}.`}
+            <p style={{ fontSize: '0.88rem', marginBottom: '1rem' }}>
+              Authorize sending{' '}
+              <strong style={{ color: 'var(--navy)' }}>
+                ₦{Number(amountNaira).toLocaleString()}
+              </strong>{' '}
+              to{' '}
+              <strong style={{ color: 'var(--navy)' }}>
+                {resolvedRecipient.accountName} ({resolvedRecipient.accountNumber})
+              </strong>
+              .
             </p>
 
             <form onSubmit={handleConfirmTransfer}>

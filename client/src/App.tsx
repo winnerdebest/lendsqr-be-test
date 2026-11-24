@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { apiRequest, clearToken, getSavedToken, UserProfile } from './api';
 import { ConsoleLayout } from './components/ConsoleLayout';
+import { ToastProvider, useToast } from './components/ToastProvider';
 import { AdminPage } from './pages/AdminPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
@@ -9,11 +10,13 @@ import { RegisterPage } from './pages/RegisterPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { TransfersPage } from './pages/TransfersPage';
 
-export function App() {
+function AppRoutes() {
+  const { showToast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [liveTick, setLiveTick] = useState(0);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const token = getSavedToken();
     if (!token) {
       setUser(null);
@@ -30,11 +33,53 @@ export function App() {
     } finally {
       setCheckingAuth(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refreshProfile();
-  }, []);
+  }, [refreshProfile]);
+
+  // Real-time stream listener so balance & incoming transfers update automatically without page refresh
+  useEffect(() => {
+    const token = getSavedToken();
+    if (!user || !token) {
+      return;
+    }
+
+    const source = new EventSource(
+      `/v1/wallets/stream?token=${encodeURIComponent(token)}`,
+    );
+
+    source.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data) as {
+          type?: string;
+          amountFormatted?: string;
+          counterpartyName?: string;
+          reference?: string;
+        };
+
+        if (data.type === 'transfer_received') {
+          showToast(
+            'Money Received!',
+            `You just received ${data.amountFormatted} from ${data.counterpartyName || 'a Lendsqr user'}.`,
+            'success',
+          );
+          setLiveTick((t) => t + 1);
+          void refreshProfile();
+        } else if (data.type === 'transfer_sent' || data.type === 'wallet_funded') {
+          setLiveTick((t) => t + 1);
+          void refreshProfile();
+        }
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    return () => {
+      source.close();
+    };
+  }, [user?.id, refreshProfile, showToast]);
 
   if (checkingAuth) {
     return null;
@@ -47,7 +92,7 @@ export function App() {
           path="/login"
           element={
             user ? (
-              <Navigate to="/dashboard" replace />
+              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <LoginPage onAuthSuccess={(u) => setUser(u)} />
             )
@@ -68,7 +113,11 @@ export function App() {
           element={
             user ? (
               <ConsoleLayout user={user} onLogout={() => setUser(null)}>
-                <DashboardPage user={user} onRefreshUser={refreshProfile} />
+                <DashboardPage
+                  user={user}
+                  liveTick={liveTick}
+                  onRefreshUser={refreshProfile}
+                />
               </ConsoleLayout>
             ) : (
               <Navigate to="/login" replace />
@@ -92,7 +141,7 @@ export function App() {
           element={
             user ? (
               <ConsoleLayout user={user} onLogout={() => setUser(null)}>
-                <TransactionsPage />
+                <TransactionsPage liveTick={liveTick} />
               </ConsoleLayout>
             ) : (
               <Navigate to="/login" replace />
@@ -113,5 +162,13 @@ export function App() {
         />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+export function App() {
+  return (
+    <ToastProvider>
+      <AppRoutes />
+    </ToastProvider>
   );
 }

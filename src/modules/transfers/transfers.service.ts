@@ -9,6 +9,7 @@ import {
   WalletRecord,
 } from '../../common/types/entities';
 import { formatKoboToNaira, generateReference, toKoboInt } from '../../common/utils/money';
+import { realtimeHub } from '../../common/utils/realtime';
 import { getDb } from '../../db/knex';
 import { CreateTransferInput } from './transfers.schemas';
 
@@ -56,31 +57,32 @@ export class TransfersService {
    */
   public async resolveRecipient(
     identifier: string,
-    trx: Knex.Transaction,
+    trx?: Knex.Transaction,
   ): Promise<{ user: UserRecord; wallet: WalletRecord }> {
+    const dbRef = trx || this.db;
     const clean = identifier.trim();
 
     let user: UserRecord | undefined;
     let wallet: WalletRecord | undefined;
 
     if (clean.includes('@')) {
-      user = await trx<UserRecord>('users').where('email', clean.toLowerCase()).first();
+      user = await dbRef<UserRecord>('users').where('email', clean.toLowerCase()).first();
       if (user) {
-        wallet = await trx<WalletRecord>('wallets').where('user_id', user.id).first();
+        wallet = await dbRef<WalletRecord>('wallets').where('user_id', user.id).first();
       }
     } else if (/^\d{10}$/.test(clean)) {
-      wallet = await trx<WalletRecord>('wallets').where('account_number', clean).first();
+      wallet = await dbRef<WalletRecord>('wallets').where('account_number', clean).first();
       if (wallet) {
-        user = await trx<UserRecord>('users').where('id', wallet.user_id).first();
+        user = await dbRef<UserRecord>('users').where('id', wallet.user_id).first();
       }
     } else if (UUID_REGEX.test(clean)) {
-      wallet = await trx<WalletRecord>('wallets').where('id', clean).first();
+      wallet = await dbRef<WalletRecord>('wallets').where('id', clean).first();
       if (wallet) {
-        user = await trx<UserRecord>('users').where('id', wallet.user_id).first();
+        user = await dbRef<UserRecord>('users').where('id', wallet.user_id).first();
       } else {
-        user = await trx<UserRecord>('users').where('id', clean).first();
+        user = await dbRef<UserRecord>('users').where('id', clean).first();
         if (user) {
-          wallet = await trx<WalletRecord>('wallets').where('user_id', user.id).first();
+          wallet = await dbRef<WalletRecord>('wallets').where('user_id', user.id).first();
         }
       }
     }
@@ -90,6 +92,24 @@ export class TransfersService {
     }
 
     return { user, wallet };
+  }
+
+  public async lookupRecipientPreview(
+    senderUserId: string,
+    identifier: string,
+  ): Promise<{
+    accountName: string;
+    accountNumber: string;
+    email: string;
+    isSelf: boolean;
+  }> {
+    const { user, wallet } = await this.resolveRecipient(identifier);
+    return {
+      accountName: `${user.first_name} ${user.last_name}`,
+      accountNumber: wallet.account_number,
+      email: user.email,
+      isSelf: user.id === senderUserId,
+    };
   }
 
   /**
@@ -107,7 +127,7 @@ export class TransfersService {
       );
     }
 
-    return this.db.transaction(async (trx) => {
+    const receipt = await this.db.transaction<TransferReceiptDTO>(async (trx) => {
       // 1. Fetch sender user and wallet
       const senderUser = await trx<UserRecord>('users').where('id', senderUserId).first();
       if (!senderUser) {
@@ -286,6 +306,27 @@ export class TransfersService {
         createdAt: now,
       };
     });
+
+    // Push real-time balance & notification events to both recipient and sender
+    realtimeHub.notifyUser(receipt.recipient.userId, {
+      type: 'transfer_received',
+      reference: receipt.reference,
+      amountFormatted: receipt.amountFormatted,
+      counterpartyName: receipt.sender.name,
+      narration: receipt.narration,
+      timestamp: new Date().toISOString(),
+    });
+
+    realtimeHub.notifyUser(receipt.sender.userId, {
+      type: 'transfer_sent',
+      reference: receipt.reference,
+      amountFormatted: receipt.amountFormatted,
+      counterpartyName: receipt.recipient.name,
+      narration: receipt.narration,
+      timestamp: new Date().toISOString(),
+    });
+
+    return receipt;
   }
 }
 

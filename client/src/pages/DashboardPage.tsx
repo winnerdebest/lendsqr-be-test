@@ -6,13 +6,16 @@ import {
   UserProfile,
   WalletSummary,
 } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 interface DashboardPageProps {
   user: UserProfile;
+  liveTick: number;
   onRefreshUser: () => Promise<void>;
 }
 
-export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
+export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPageProps) {
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [wallet, setWallet] = useState<WalletSummary>(user.wallet);
   const [recentTxs, setRecentTxs] = useState<TransactionItem[]>([]);
@@ -52,6 +55,11 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
       setSuccessMsg(
         `Deposit of ${res.data.amountFormatted} confirmed and added to your balance!`,
       );
+      showToast(
+        'Wallet Funded',
+        `${res.data.amountFormatted} has been credited to your wallet.`,
+        'success',
+      );
       setPendingPaystackUrl(null);
       await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
     } catch (err) {
@@ -63,7 +71,9 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
 
   useEffect(() => {
     void loadWalletAndTxs();
+  }, [liveTick, user.wallet.balanceKobo]);
 
+  useEffect(() => {
     const callbackRef = searchParams.get('reference') || searchParams.get('trxref');
     if (callbackRef) {
       setSearchParams({}, { replace: true });
@@ -74,6 +84,7 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
   const handleCopyAccount = () => {
     void navigator.clipboard.writeText(wallet.accountNumber);
     setCopied(true);
+    showToast('Account Number Copied', `${wallet.accountNumber} copied to clipboard.`, 'info');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -145,6 +156,7 @@ export function DashboardPage({ user, onRefreshUser }: DashboardPageProps) {
       setShowPinModal(false);
       setNewPin('');
       setSuccessMsg('Your 4-digit Transfer PIN has been saved.');
+      showToast('Transfer PIN Saved', 'Your 4-digit security PIN is now active.', 'success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save PIN');
     } finally {
