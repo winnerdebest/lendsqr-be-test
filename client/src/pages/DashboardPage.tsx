@@ -28,8 +28,6 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
   const [showPinModal, setShowPinModal] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [savingPin, setSavingPin] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const loadWalletAndTxs = async () => {
     try {
@@ -47,7 +45,6 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
   const verifyReference = async (ref: string, silent = false) => {
     if (!ref.trim()) return false;
     if (!silent) {
-      setError(null);
       setFunding(true);
     }
     try {
@@ -68,12 +65,9 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
         return false;
       }
 
-      setSuccessMsg(
-        `Deposit of ${res.data.amountFormatted} confirmed and added to your balance!`,
-      );
       showToast(
         'Wallet Funded',
-        `${res.data.amountFormatted} has been credited to your wallet.`,
+        `${res.data.amountFormatted} has been credited to your wallet!`,
         'success',
       );
       setPendingPaystackUrl(null);
@@ -81,10 +75,15 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
       await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
       return true;
     } catch (err) {
-      if (!silent) {
-        setError(err instanceof Error ? err.message : 'Payment verification failed');
-      }
-      return false;
+      setPendingPaystackUrl(null);
+      setVerifyingRef('');
+      showToast(
+        'Deposit Failed',
+        err instanceof Error ? err.message : 'Payment was declined or cancelled.',
+        'error',
+      );
+      await loadWalletAndTxs();
+      return true;
     } finally {
       if (!silent) {
         setFunding(false);
@@ -129,13 +128,11 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
 
   const handleFund = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
     setPendingPaystackUrl(null);
 
     const parsedNaira = Number(amountNaira);
     if (Number.isNaN(parsedNaira) || parsedNaira < 100) {
-      setError('Minimum funding amount is ₦100.00');
+      showToast('Invalid Amount', 'Minimum funding amount is ₦100.00', 'error');
       return;
     }
 
@@ -164,15 +161,21 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
         setPendingPaystackUrl(res.data.authorizationUrl);
         setVerifyingRef(res.data.reference);
         window.open(res.data.authorizationUrl, '_blank', 'noopener,noreferrer');
-        setSuccessMsg(
-          'Paystack checkout opened in a new tab. Once you complete payment, click "Confirm Deposit" below.',
+        showToast(
+          'Paystack Checkout Opened',
+          'Complete payment in the new tab — your balance will update automatically.',
+          'info',
         );
       } else {
-        setSuccessMsg(`Funded ${res.data.amountFormatted} successfully!`);
+        showToast('Wallet Funded', `Funded ${res.data.amountFormatted} successfully!`, 'success');
         await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to start payment');
+      showToast(
+        'Unable to Start Deposit',
+        err instanceof Error ? err.message : 'Unable to start payment',
+        'error',
+      );
     } finally {
       setFunding(false);
     }
@@ -181,11 +184,10 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
   const handleSavePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4}$/.test(newPin)) {
-      setError('Transfer PIN must be 4 digits');
+      showToast('Invalid PIN', 'Transfer PIN must be 4 digits', 'error');
       return;
     }
     setSavingPin(true);
-    setError(null);
     try {
       await apiRequest('/v1/users/me/pin', {
         method: 'POST',
@@ -194,10 +196,13 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
       await onRefreshUser();
       setShowPinModal(false);
       setNewPin('');
-      setSuccessMsg('Your 4-digit Transfer PIN has been saved.');
       showToast('Transfer PIN Saved', 'Your 4-digit security PIN is now active.', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save PIN');
+      showToast(
+        'Failed to Save PIN',
+        err instanceof Error ? err.message : 'Failed to save PIN',
+        'error',
+      );
     } finally {
       setSavingPin(false);
     }
@@ -291,9 +296,6 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
           <h2 className="panel-title">Add Money</h2>
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
-        {successMsg && <div className="alert alert-success">{successMsg}</div>}
-
         <form onSubmit={handleFund}>
           <div className="form-row">
             <div className="form-group">
@@ -362,7 +364,7 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
                   onClick={() => {
                     setPendingPaystackUrl(null);
                     setVerifyingRef('');
-                    setSuccessMsg(null);
+                    showToast('Checkout Cancelled', 'Pending deposit check stopped.', 'info');
                   }}
                 >
                   Cancel Checkout

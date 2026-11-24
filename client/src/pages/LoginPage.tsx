@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiRequest, saveToken, UserProfile } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 interface LoginPageProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -8,14 +9,13 @@ interface LoginPageProps {
 
 export function LoginPage({ onAuthSuccess }: LoginPageProps) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
 
     try {
@@ -29,9 +29,10 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
       );
       saveToken(res.data.accessToken);
       onAuthSuccess(res.data.user);
+      showToast('Welcome back!', `Signed in as ${res.data.user.firstName}.`, 'success');
       navigate(res.data.user.role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      showToast('Sign In Failed', err instanceof Error ? err.message : 'Login failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -75,8 +76,6 @@ export function LoginPage({ onAuthSuccess }: LoginPageProps) {
       <main className="auth-main">
         <h1 className="auth-title">Welcome!</h1>
         <p className="auth-subtitle">Enter your details to sign in to your wallet.</p>
-
-        {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

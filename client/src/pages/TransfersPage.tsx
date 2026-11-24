@@ -30,13 +30,6 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [receipt, setReceipt] = useState<{
-    reference: string;
-    amountFormatted: string;
-    recipient: { name: string; email: string; accountNumber: string };
-    sender: { balanceFormatted: string };
-  } | null>(null);
 
   // Automatic Name Inquiry as user enters 10-digit account number or email
   useEffect(() => {
@@ -88,23 +81,27 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
 
   const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setReceipt(null);
 
     if (!resolvedRecipient) {
-      setError(resolveError || 'Please enter a valid recipient account number or email');
+      showToast(
+        'Recipient Required',
+        resolveError || 'Please enter a valid recipient account number or email',
+        'error',
+      );
       return;
     }
 
     const parsedNaira = Number(amountNaira);
     if (Number.isNaN(parsedNaira) || parsedNaira < 100) {
-      setError('Minimum transfer amount is ₦100.00');
+      showToast('Invalid Amount', 'Minimum transfer amount is ₦100.00', 'error');
       return;
     }
 
     if (parsedNaira * 100 > user.wallet.balanceKobo) {
-      setError(
-        `Insufficient balance. Your available balance is ${user.wallet.balanceFormatted}.`,
+      showToast(
+        'Insufficient Balance',
+        `Your available balance is ${user.wallet.balanceFormatted}.`,
+        'error',
       );
       return;
     }
@@ -116,12 +113,11 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
   const handleConfirmTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4}$/.test(pin)) {
-      setError('Please enter your 4-digit transfer PIN');
+      showToast('Invalid PIN', 'Please enter your 4-digit transfer PIN', 'error');
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       if (!user.hasPin) {
@@ -149,7 +145,6 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
       });
 
       setShowPinModal(false);
-      setReceipt(res.data);
       showToast(
         'Transfer Successful',
         `Sent ${res.data.amountFormatted} to ${res.data.recipient.name} (${res.data.recipient.accountNumber}).`,
@@ -164,7 +159,6 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
     } catch (err) {
       setShowPinModal(false);
       const msg = err instanceof Error ? err.message : 'Transfer failed';
-      setError(msg);
       showToast('Transfer Failed', msg, 'error');
     } finally {
       setLoading(false);
@@ -194,23 +188,6 @@ export function TransfersPage({ user, onRefreshUser }: TransfersPageProps) {
         <div className="panel-header">
           <h2 className="panel-title">Transfer Details</h2>
         </div>
-
-        {error && <div className="alert alert-error">{error}</div>}
-
-        {receipt && (
-          <div className="alert alert-success">
-            <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
-              Transfer Successful!
-            </div>
-            <div>
-              You sent <strong>{receipt.amountFormatted}</strong> to{' '}
-              <strong>
-                {receipt.recipient.name} ({receipt.recipient.accountNumber})
-              </strong>
-              . Reference: <span className="mono">{receipt.reference}</span>
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleOpenConfirmModal}>
           <div className="form-group">

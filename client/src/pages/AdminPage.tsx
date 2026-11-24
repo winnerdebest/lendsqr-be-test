@@ -6,6 +6,7 @@ import {
   saveToken,
   UserProfile,
 } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 interface AdminPageProps {
   user: UserProfile | null;
@@ -13,6 +14,7 @@ interface AdminPageProps {
 }
 
 export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
+  const { showToast } = useToast();
   const isAdmin = user?.role === 'admin';
   const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'blacklist'>('users');
 
@@ -28,12 +30,9 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
   const [newIdentity, setNewIdentity] = useState('');
   const [newReason, setNewReason] = useState('Compliance hold');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const loadAdminData = async () => {
     setLoading(true);
-    setError(null);
     try {
       const [uRes, txRes, bRes] = await Promise.all([
         apiRequest<{ users: UserProfile[] }>('/v1/admin/users'),
@@ -44,7 +43,11 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
       setTransactions(txRes.data.transactions);
       setBlacklist(bRes.data.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load admin data');
+      showToast(
+        'Admin Load Error',
+        err instanceof Error ? err.message : 'Failed to load admin data',
+        'error',
+      );
     } finally {
       setLoading(false);
     }
@@ -58,7 +61,6 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setAuthLoading(true);
 
     try {
@@ -77,8 +79,13 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
 
       saveToken(res.data.accessToken);
       onAuthSuccess(res.data.user);
+      showToast('Admin Authenticated', 'Welcome to the Lendsqr Administration Console.', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Admin login failed');
+      showToast(
+        'Admin Sign In Failed',
+        err instanceof Error ? err.message : 'Admin login failed',
+        'error',
+      );
     } finally {
       setAuthLoading(false);
     }
@@ -95,8 +102,6 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
             Sign in with your Lendsqr administrator credentials to view customers,
             transactions, and compliance controls.
           </p>
-
-          {error && <div className="alert alert-error">{error}</div>}
 
           <form onSubmit={handleAdminLogin}>
             <div className="form-group">
@@ -142,52 +147,60 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
         ? 'Account frozen by administrator'
         : 'Account restored by administrator';
 
-    setError(null);
-    setSuccessMsg(null);
     try {
       await apiRequest(`/v1/admin/users/${u.id}/${action}`, {
         method: 'PATCH',
         body: { reason },
       });
-      setSuccessMsg(
+      showToast(
+        action === 'block' ? 'Account Blocked' : 'Account Restored',
         `Customer ${u.firstName} ${u.lastName} has been ${
           action === 'block' ? 'blocked' : 'unblocked'
         }.`,
+        'success',
       );
       await loadAdminData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${action} user`);
+      showToast(
+        'Action Failed',
+        err instanceof Error ? err.message : `Failed to ${action} user`,
+        'error',
+      );
     }
   };
 
   const handleAddBlacklist = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
     try {
       await apiRequest('/v1/admin/blacklist', {
         method: 'POST',
         body: { identity: newIdentity.trim(), reason: newReason.trim() },
       });
-      setSuccessMsg(`Added '${newIdentity.trim()}' to the blacklist.`);
+      showToast('Identity Blacklisted', `Added '${newIdentity.trim()}' to the blacklist.`, 'success');
       setNewIdentity('');
       await loadAdminData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add to blacklist');
+      showToast(
+        'Blacklist Failed',
+        err instanceof Error ? err.message : 'Failed to add to blacklist',
+        'error',
+      );
     }
   };
 
   const handleRemoveBlacklist = async (identity: string) => {
-    setError(null);
-    setSuccessMsg(null);
     try {
       await apiRequest(`/v1/admin/blacklist/${encodeURIComponent(identity)}`, {
         method: 'DELETE',
       });
-      setSuccessMsg(`Removed '${identity}' from the blacklist.`);
+      showToast('Identity Removed', `Removed '${identity}' from the blacklist.`, 'info');
       await loadAdminData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove identity');
+      showToast(
+        'Remove Failed',
+        err instanceof Error ? err.message : 'Failed to remove identity',
+        'error',
+      );
     }
   };
 
@@ -253,9 +266,6 @@ export function AdminPage({ user, onAuthSuccess }: AdminPageProps) {
           Blacklist ({blacklist.length})
         </button>
       </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
-      {successMsg && <div className="alert alert-success">{successMsg}</div>}
 
       {activeTab === 'users' && (
         <div className="panel">

@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { apiRequest, TransactionDetail, TransactionItem } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 export function TransactionsPage({ liveTick = 0 }: { liveTick?: number }) {
+  const { showToast } = useToast();
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const loadTransactions = async (typeVal = typeFilter) => {
     setLoading(true);
-    setError(null);
     try {
       const query = typeVal ? `?type=${encodeURIComponent(typeVal)}&limit=50` : '?limit=50';
       const res = await apiRequest<{ items: TransactionItem[] }>(`/v1/transactions${query}`);
       setItems(res.data.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load transactions');
+      showToast(
+        'Could Not Load History',
+        err instanceof Error ? err.message : 'Failed to load transactions',
+        'error',
+      );
     } finally {
       setLoading(false);
     }
@@ -27,14 +31,17 @@ export function TransactionsPage({ liveTick = 0 }: { liveTick?: number }) {
   }, [liveTick]);
 
   const handleViewReceipt = async (reference: string) => {
-    setError(null);
     try {
       const res = await apiRequest<TransactionDetail>(
         `/v1/transactions/${encodeURIComponent(reference)}`,
       );
       setSelectedTx(res.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load transaction receipt');
+      showToast(
+        'Receipt Unavailable',
+        err instanceof Error ? err.message : 'Failed to load transaction receipt',
+        'error',
+      );
     }
   };
 
@@ -71,8 +78,6 @@ export function TransactionsPage({ liveTick = 0 }: { liveTick?: number }) {
           </button>
         </div>
       </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
 
       <div className="panel">
         <div className="panel-header">

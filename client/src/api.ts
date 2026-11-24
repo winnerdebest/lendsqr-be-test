@@ -125,8 +125,7 @@ export async function apiRequest<T>(
   const payload = await response.json();
 
   if (!response.ok || payload.status === 'error') {
-    const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-    throw new Error(`${payload.message || 'Request failed'}${code}`);
+    throw new Error(payload.message || 'Request failed');
   }
 
   return {

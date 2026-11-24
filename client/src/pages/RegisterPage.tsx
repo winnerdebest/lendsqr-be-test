@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiRequest, saveToken, UserProfile } from '../api';
+import { useToast } from '../components/ToastProvider';
 
 interface RegisterPageProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -8,17 +9,16 @@ interface RegisterPageProps {
 
 export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
 
     try {
@@ -32,9 +32,18 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
       );
       saveToken(res.data.accessToken);
       onAuthSuccess(res.data.user);
+      showToast(
+        'Wallet Created!',
+        `Welcome ${res.data.user.firstName}! Your account number is ${res.data.user.wallet.accountNumber}.`,
+        'success',
+      );
       navigate('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      showToast(
+        'Registration Failed',
+        err instanceof Error ? err.message : 'Registration failed',
+        'error',
+      );
     } finally {
       setLoading(false);
     }
@@ -74,8 +83,6 @@ export function RegisterPage({ onAuthSuccess }: RegisterPageProps) {
       <main className="auth-main">
         <h1 className="auth-title">Create Account</h1>
         <p className="auth-subtitle">Enter your personal details to open your wallet.</p>
-
-        {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-row">
