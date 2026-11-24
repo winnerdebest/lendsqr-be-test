@@ -44,10 +44,12 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
     }
   };
 
-  const verifyReference = async (ref: string) => {
-    if (!ref.trim()) return;
-    setError(null);
-    setFunding(true);
+  const verifyReference = async (ref: string, silent = false) => {
+    if (!ref.trim()) return false;
+    if (!silent) {
+      setError(null);
+      setFunding(true);
+    }
     try {
       const res = await apiRequest<{ reference: string; amountFormatted: string }>(
         `/v1/wallets/fund/verify/${encodeURIComponent(ref.trim())}`,
@@ -61,17 +63,40 @@ export function DashboardPage({ user, liveTick, onRefreshUser }: DashboardPagePr
         'success',
       );
       setPendingPaystackUrl(null);
+      setVerifyingRef('');
       await Promise.all([loadWalletAndTxs(), onRefreshUser()]);
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment verification failed');
+      if (!silent) {
+        setError(err instanceof Error ? err.message : 'Payment verification failed');
+      }
+      return false;
     } finally {
-      setFunding(false);
+      if (!silent) {
+        setFunding(false);
+      }
     }
   };
 
   useEffect(() => {
     void loadWalletAndTxs();
   }, [liveTick, user.wallet.balanceKobo]);
+
+  // Automatically poll backend Paystack verification while a checkout reference is pending
+  useEffect(() => {
+    if (!verifyingRef || !pendingPaystackUrl) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const settled = await verifyReference(verifyingRef, true);
+      if (settled) {
+        clearInterval(interval);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [verifyingRef, pendingPaystackUrl]);
 
   useEffect(() => {
     const callbackRef = searchParams.get('reference') || searchParams.get('trxref');

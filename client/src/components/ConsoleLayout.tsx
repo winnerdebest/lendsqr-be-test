@@ -34,7 +34,7 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
             <>
               <div className="user-chip">
                 <div className="avatar">{initials}</div>
-                <span>
+                <span className="user-name-text">
                   {user.firstName} {user.lastName}
                 </span>
               </div>
@@ -68,7 +68,7 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
               to="/transfers"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
-              Transfers
+              Send Money
             </NavLink>
             <NavLink
               to="/transactions"
@@ -86,7 +86,7 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
                   to="/admin"
                   className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 >
-                  User & Blacklist Console
+                  Admin Console
                 </NavLink>
               </>
             )}
@@ -95,6 +95,41 @@ export function ConsoleLayout({ user, onLogout, children }: ConsoleLayoutProps) 
 
         <main className="content-area">{children}</main>
       </div>
+
+      {user && (
+        <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="mobile-nav-icon">&#8962;</span>
+            <span>Home</span>
+          </NavLink>
+          <NavLink
+            to="/transfers"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="mobile-nav-icon">&#8599;</span>
+            <span>Send</span>
+          </NavLink>
+          <NavLink
+            to="/transactions"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="mobile-nav-icon">&#9776;</span>
+            <span>History</span>
+          </NavLink>
+          {user.role === 'admin' && (
+            <NavLink
+              to="/admin"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <span className="mobile-nav-icon">&#9881;</span>
+              <span>Admin</span>
+            </NavLink>
+          )}
+        </nav>
+      )}
     </div>
   );
 }
