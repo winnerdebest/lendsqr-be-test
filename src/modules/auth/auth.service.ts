@@ -52,6 +52,7 @@ export class AuthService {
     const accessToken = signAccessToken({
       userId: user.id,
       email: user.email,
+      role: user.role || 'user',
     });
 
     return {
@@ -87,6 +88,7 @@ export class AuthService {
     const accessToken = signAccessToken({
       userId: user.id,
       email: user.email,
+      role: user.role || 'user',
     });
 
     return {

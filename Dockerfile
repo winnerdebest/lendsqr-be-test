@@ -5,8 +5,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-COPY tsconfig*.json ./
+COPY tsconfig*.json vite.config.ts ./
 COPY src ./src
+COPY client ./client
 RUN npm run build
 
 # Stage 2: Production runtime image

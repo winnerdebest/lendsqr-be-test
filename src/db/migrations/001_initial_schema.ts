@@ -10,6 +10,11 @@ export async function up(knex: Knex): Promise<void> {
     table.string('last_name', 100).notNullable();
     table.string('password_hash', 255).notNullable();
     table
+      .string('role', 20)
+      .notNullable()
+      .defaultTo('user')
+      .checkIn(['user', 'admin'], 'chk_users_role');
+    table
       .string('status', 20)
       .notNullable()
       .defaultTo('active')

@@ -1,12 +1,13 @@
-import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { APP_CONSTANTS, env } from '../../config/env';
 import { AppError } from '../errors/AppError';
+import { UserRole } from '../types/entities';
 
 export interface AuthUserPayload {
   userId: string;
   email: string;
+  role: UserRole;
 }
 
 declare global {
@@ -33,6 +34,7 @@ export function verifyAccessToken(token: string): AuthUserPayload {
     return {
       userId: decoded.userId,
       email: decoded.email,
+      role: decoded.role === 'admin' ? 'admin' : 'user',
     };
   } catch (err) {
     if (err instanceof AppError) {
@@ -59,25 +61,16 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
 }
 
-export function requireAdminKey(req: Request, _res: Response, next: NextFunction): void {
-  try {
-    const providedKey = req.headers['x-admin-key'];
-    if (typeof providedKey !== 'string' || !providedKey.trim()) {
-      throw AppError.unauthorized('Missing x-admin-key header for admin endpoint');
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  requireAuth(req, res, (err?: unknown) => {
+    if (err) {
+      next(err);
+      return;
     }
-
-    const expectedBuf = Buffer.from(env.ADMIN_API_KEY, 'utf8');
-    const providedBuf = Buffer.from(providedKey.trim(), 'utf8');
-
-    if (
-      expectedBuf.length !== providedBuf.length ||
-      !crypto.timingSafeEqual(expectedBuf, providedBuf)
-    ) {
-      throw AppError.forbidden('Invalid admin API key', 'FORBIDDEN');
+    if (!req.user || req.user.role !== 'admin') {
+      next(AppError.forbidden('Admin privileges required for this action', 'FORBIDDEN'));
+      return;
     }
-
     next();
-  } catch (error) {
-    next(error);
-  }
+  });
 }

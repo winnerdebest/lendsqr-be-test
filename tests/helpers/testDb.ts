@@ -1,5 +1,6 @@
 import { Knex } from 'knex';
 import { DataType, newDb } from 'pg-mem';
+import { ensureDefaultAdminSeeded } from '../../src/db/cli';
 import { getDb, setDb } from '../../src/db/knex';
 import * as initialMigration from '../../src/db/migrations/001_initial_schema';
 
@@ -42,6 +43,7 @@ export async function setupTestDatabase(): Promise<Knex> {
     const db = getDb();
     await initialMigration.down(db);
     await initialMigration.up(db);
+    await ensureDefaultAdminSeeded();
     activeTestDb = db;
     usingRealPostgres = true;
     return db;
@@ -63,6 +65,7 @@ export async function setupTestDatabase(): Promise<Knex> {
   attachInMemoryTransactionSerializer(knexInstance);
   await initialMigration.up(knexInstance);
   setDb(knexInstance);
+  await ensureDefaultAdminSeeded();
   activeTestDb = knexInstance;
   usingRealPostgres = false;
   return knexInstance;
@@ -81,6 +84,7 @@ export async function resetTestDatabase(): Promise<void> {
     await activeTestDb('transactions').del();
     await activeTestDb('wallets').del();
     await activeTestDb('users').del();
+    await ensureDefaultAdminSeeded();
   } else {
     await activeTestDb.destroy();
     await setupTestDatabase();

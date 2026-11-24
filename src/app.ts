@@ -1,7 +1,9 @@
 import cors from 'cors';
-import express, { Express, Request, Response } from 'express';
+import express, { Express, NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
 import helmet from 'helmet';
+import path from 'path';
 import { errorHandler, notFoundHandler } from './common/middleware/errorHandler';
 import { sendSuccess } from './common/utils/response';
 import { APP_CONSTANTS, env } from './config/env';
@@ -19,7 +21,6 @@ export function createApp(): Express {
 
   app.set('trust proxy', 1);
 
-  // Security headers (relaxed CSP on /docs so Swagger UI CDN assets load cleanly)
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -27,7 +28,6 @@ export function createApp(): Express {
   );
   app.use(cors());
 
-  // Capture rawBody buffer for HMAC-SHA512 Paystack webhook verification
   app.use(
     express.json({
       limit: '1mb',
@@ -37,7 +37,6 @@ export function createApp(): Express {
     }),
   );
 
-  // Rate limit auth endpoints in production/development (disabled in test runs for speed)
   if (env.NODE_ENV !== 'test') {
     const authLimiter = rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -52,33 +51,6 @@ export function createApp(): Express {
     });
     app.use('/v1/auth', authLimiter);
   }
-
-  // Branded Landing Page
-  app.get('/', async (req: Request, res: Response) => {
-    const dbHealth = await checkDbHealth();
-    const acceptsHtml = req.headers.accept?.includes('text/html');
-    if (acceptsHtml) {
-      res
-        .status(200)
-        .setHeader('Content-Type', 'text/html; charset=utf-8')
-        .send(renderLandingPageHtml(dbHealth.connected, dbHealth.latencyMs));
-      return;
-    }
-
-    sendSuccess(
-      res,
-      {
-        service: APP_CONSTANTS.SERVICE_NAME,
-        version: '1.0.0',
-        environment: env.NODE_ENV,
-        docsUrl: '/docs',
-        healthUrl: '/health',
-        database: dbHealth,
-      },
-      'Lendsqr Wallet Service is running',
-      200,
-    );
-  });
 
   // Liveness & DB readiness check
   app.get('/health', async (_req: Request, res: Response) => {
@@ -118,6 +90,60 @@ export function createApp(): Express {
   app.use('/v1/transfers', transfersRouter);
   app.use('/v1/transactions', transactionsRouter);
   app.use('/v1/admin', adminRouter);
+
+  // Serve built React Frontend (`dist/client`) for browser routes
+  const clientDistDir = path.resolve(process.cwd(), 'dist/client');
+  const clientIndexHtml = path.join(clientDistDir, 'index.html');
+
+  if (fs.existsSync(clientDistDir)) {
+    app.use(express.static(clientDistDir, { index: false }));
+  }
+
+  app.get('*', async (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/v1/')) {
+      next();
+      return;
+    }
+
+    const acceptsHtml = req.headers.accept?.includes('text/html');
+
+    // If an API client requests JSON at `/`, return service metadata
+    if (req.path === '/' && !acceptsHtml) {
+      const dbHealth = await checkDbHealth();
+      sendSuccess(
+        res,
+        {
+          service: APP_CONSTANTS.SERVICE_NAME,
+          version: '1.0.0',
+          environment: env.NODE_ENV,
+          docsUrl: '/docs',
+          healthUrl: '/health',
+          database: dbHealth,
+        },
+        'Lendsqr Wallet Service is running',
+        200,
+      );
+      return;
+    }
+
+    // Serve React SPA index.html if built
+    if (fs.existsSync(clientIndexHtml)) {
+      res.sendFile(clientIndexHtml);
+      return;
+    }
+
+    // Fallback landing HTML if client has not been built yet
+    if (req.path === '/') {
+      const dbHealth = await checkDbHealth();
+      res
+        .status(200)
+        .setHeader('Content-Type', 'text/html; charset=utf-8')
+        .send(renderLandingPageHtml(dbHealth.connected, dbHealth.latencyMs));
+      return;
+    }
+
+    next();
+  });
 
   // 404 & Central Error Handler
   app.use(notFoundHandler);

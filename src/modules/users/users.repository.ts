@@ -10,6 +10,7 @@ export interface CreateUserWithWalletInput {
   firstName: string;
   lastName: string;
   passwordHash: string;
+  role?: 'user' | 'admin';
 }
 
 export interface UserWithWalletDTO {
@@ -18,6 +19,7 @@ export interface UserWithWalletDTO {
   phone: string;
   firstName: string;
   lastName: string;
+  role: 'user' | 'admin';
   status: UserStatus;
   blockedReason: string | null;
   createdAt: Date;
@@ -83,6 +85,7 @@ export class UsersRepository {
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
         password_hash: input.passwordHash,
+        role: input.role || 'user',
         status: 'active',
         blocked_reason: null,
         created_at: now,
@@ -157,6 +160,7 @@ export class UsersRepository {
       phone: user.phone,
       firstName: user.first_name,
       lastName: user.last_name,
+      role: user.role || 'user',
       status: user.status,
       blockedReason: user.blocked_reason,
       createdAt: user.created_at,

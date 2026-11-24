@@ -2,16 +2,18 @@ import knex, { Knex } from 'knex';
 import path from 'path';
 import { env } from '../config/env';
 
-const isProduction = env.NODE_ENV === 'production';
+const needsSsl =
+  env.NODE_ENV === 'production' ||
+  env.DATABASE_URL.includes('render.com') ||
+  env.DATABASE_URL.includes('ssl=true') ||
+  env.DATABASE_URL.includes('sslmode=require');
 
 export const knexConfig: Knex.Config = {
   client: 'pg',
-  connection: isProduction
+  connection: needsSsl
     ? {
         connectionString: env.DATABASE_URL,
-        ssl: env.DATABASE_URL.includes('localhost')
-          ? false
-          : { rejectUnauthorized: false },
+        ssl: { rejectUnauthorized: false },
       }
     : env.DATABASE_URL,
   pool: {

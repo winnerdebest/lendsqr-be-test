@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { app } from '../../src/app';
-import { env } from '../../src/config/env';
+import { APP_CONSTANTS } from '../../src/config/env';
 import {
   resetTestDatabase,
   setupTestDatabase,
@@ -8,7 +8,13 @@ import {
 } from '../helpers/testDb';
 
 describe('Wallet API End-to-End, Idempotency & Concurrency Integration Suite', () => {
-  const adminKey = env.ADMIN_API_KEY;
+  async function getAdminToken(): Promise<string> {
+    const res = await request(app).post('/v1/auth/login').send({
+      email: APP_CONSTANTS.DEFAULT_ADMIN_EMAIL,
+      password: APP_CONSTANTS.DEFAULT_ADMIN_PASSWORD,
+    });
+    return res.body.data.accessToken as string;
+  }
 
   beforeAll(async () => {
     await setupTestDatabase();
@@ -22,12 +28,10 @@ describe('Wallet API End-to-End, Idempotency & Concurrency Integration Suite', (
     await teardownTestDatabase();
   });
 
-  it('serves the Lendsqr-branded landing page, OpenAPI spec, and /health endpoint', async () => {
+  it('serves the Lendsqr-branded web app, OpenAPI spec, and /health endpoint', async () => {
     const landingRes = await request(app).get('/').set('Accept', 'text/html');
     expect(landingRes.status).toBe(200);
-    expect(landingRes.text).toContain('#213F7D');
-    expect(landingRes.text).toContain('#39CDCC');
-    expect(landingRes.text).toContain('Work Sans');
+    expect(landingRes.text).toContain('Lendsqr');
 
     const healthRes = await request(app).get('/health');
     expect(healthRes.status).toBe(200);
@@ -96,13 +100,13 @@ describe('Wallet API End-to-End, Idempotency & Concurrency Integration Suite', (
     expect(txDetailRes.status).toBe(200);
     expect(txDetailRes.body.data.ledgerEntries).toHaveLength(2);
 
-    // 6. Admin blocks Alice
+    // 6. Admin logs in via JWT and blocks Alice
+    const adminToken = await getAdminToken();
     const blockRes = await request(app)
       .patch(`/v1/admin/users/${aliceId}/block`)
-      .set('x-admin-key', adminKey)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         reason: 'Temporary compliance hold',
-        actor: 'compliance-admin',
       });
     expect(blockRes.status).toBe(200);
     expect(blockRes.body.data.user.status).toBe('blocked');
@@ -136,10 +140,9 @@ describe('Wallet API End-to-End, Idempotency & Concurrency Integration Suite', (
     // 9. Admin unblocks Alice
     const unblockRes = await request(app)
       .patch(`/v1/admin/users/${aliceId}/unblock`)
-      .set('x-admin-key', adminKey)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         reason: 'Compliance hold cleared',
-        actor: 'compliance-admin',
       });
     expect(unblockRes.status).toBe(200);
     expect(unblockRes.body.data.user.status).toBe('active');
@@ -380,9 +383,10 @@ describe('Wallet API End-to-End, Idempotency & Concurrency Integration Suite', (
   });
 
   it('blocks blacklisted identities added via Admin API from registering new accounts', async () => {
+    const adminToken = await getAdminToken();
     const addBlRes = await request(app)
       .post('/v1/admin/blacklist')
-      .set('x-admin-key', adminKey)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         identity: 'known.scammer@bad.com',
         reason: 'Confirmed identity theft',

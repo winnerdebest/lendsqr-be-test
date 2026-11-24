@@ -13,10 +13,6 @@ const envSchema = z.object({
     .string()
     .min(16, 'JWT_SECRET must be at least 16 characters')
     .default('lendsqr-super-secret-jwt-key-change-in-production-2026'),
-  ADMIN_API_KEY: z
-    .string()
-    .min(8, 'ADMIN_API_KEY must be at least 8 characters')
-    .default('lendsqr-admin-secret-key-2026'),
   ADJUTOR_API_KEY: z.string().optional().default(''),
   PAYSTACK_SECRET_KEY: z.string().optional().default(''),
 });
@@ -25,7 +21,6 @@ export type EnvConfig = z.infer<typeof envSchema>;
 
 export const env: EnvConfig = envSchema.parse(process.env);
 
-// Application constants (kept in code rather than cluttering .env)
 export const APP_CONSTANTS = {
   SERVICE_NAME: 'lendsqr-wallet-service',
   JWT_EXPIRES_IN: '24h',
@@ -35,4 +30,7 @@ export const APP_CONSTANTS = {
   MIN_TRANSACTION_AMOUNT_KOBO: 10000, // ₦100.00
   MAX_TRANSACTION_AMOUNT_KOBO: 1000000000, // ₦10,000,000.00
   IDEMPOTENCY_TTL_HOURS: 24,
+  DEFAULT_ADMIN_EMAIL: 'admin@lendsqr.com',
+  DEFAULT_ADMIN_PASSWORD: 'AdminPassword123!',
+  DEFAULT_ADMIN_PHONE: '+2348000000000',
 } as const;

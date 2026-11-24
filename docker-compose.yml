@@ -33,7 +33,6 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lendsqr_wallet
       JWT_SECRET: lendsqr-super-secret-jwt-key-change-in-production-2026
-      ADMIN_API_KEY: lendsqr-admin-secret-key-2026
       ADJUTOR_API_KEY: ${ADJUTOR_API_KEY:-}
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
 

@@ -36,13 +36,7 @@ export const openApiSpec = {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: 'Enter the JWT `accessToken` returned by `/v1/auth/register` or `/v1/auth/login`',
-      },
-      AdminKeyAuth: {
-        type: 'apiKey',
-        in: 'header',
-        name: 'x-admin-key',
-        description: 'Admin API key (`ADMIN_API_KEY`, default in dev: `lendsqr-admin-secret-key-2026`)',
+        description: 'Enter the JWT `accessToken` returned by `/v1/auth/register` or `/v1/auth/login` (use `admin@lendsqr.com` / `AdminPassword123!` for admin endpoints)',
       },
     },
     parameters: {
@@ -323,7 +317,7 @@ export const openApiSpec = {
       get: {
         tags: ['Admin'],
         summary: 'List all users and wallet summaries',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         responses: {
           '200': { description: 'List of users and wallets' },
         },
@@ -333,7 +327,7 @@ export const openApiSpec = {
       patch: {
         tags: ['Admin'],
         summary: 'Block a user account and freeze wallet transfers',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -352,7 +346,7 @@ export const openApiSpec = {
       patch: {
         tags: ['Admin'],
         summary: 'Unblock a user account',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
@@ -371,7 +365,7 @@ export const openApiSpec = {
       get: {
         tags: ['Admin'],
         summary: 'List all blacklisted identities',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         responses: {
           '200': { description: 'Blacklist retrieved' },
         },
@@ -379,7 +373,7 @@ export const openApiSpec = {
       post: {
         tags: ['Admin'],
         summary: 'Add an email, phone, or BVN to the local blacklist',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -397,7 +391,7 @@ export const openApiSpec = {
       delete: {
         tags: ['Admin'],
         summary: 'Remove an identity from the local blacklist',
-        security: [{ AdminKeyAuth: [] }],
+        security: [{ BearerAuth: [] }],
         parameters: [
           { name: 'identity', in: 'path', required: true, schema: { type: 'string' } },
         ],

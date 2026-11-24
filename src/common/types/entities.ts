@@ -1,3 +1,4 @@
+export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'blocked';
 export type TransactionType = 'funding' | 'transfer';
 export type TransactionStatus = 'pending' | 'successful' | 'failed';
@@ -12,6 +13,7 @@ export interface UserRecord {
   first_name: string;
   last_name: string;
   password_hash: string;
+  role: UserRole;
   status: UserStatus;
   blocked_reason: string | null;
   created_at: Date;
@@ -23,7 +25,7 @@ export interface WalletRecord {
   user_id: string;
   account_number: string;
   currency: string;
-  balance: string | number; // pg returns bigint as string
+  balance: string | number;
   created_at: Date;
   updated_at: Date;
 }

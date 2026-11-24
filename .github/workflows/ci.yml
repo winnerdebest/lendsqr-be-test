@@ -54,5 +54,4 @@ jobs:
           USE_REAL_PG: 'true'
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lendsqr_wallet_test
           JWT_SECRET: ci-test-jwt-secret-key-2026-lendsqr
-          ADMIN_API_KEY: ci-test-admin-key-2026
         run: npm test

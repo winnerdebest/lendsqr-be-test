@@ -1,5 +1,5 @@
 import { Request, Response, Router } from 'express';
-import { requireAdminKey } from '../../common/middleware/auth';
+import { requireAdmin } from '../../common/middleware/auth';
 import { validateRequest } from '../../common/middleware/validate';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { sendSuccess } from '../../common/utils/response';
@@ -8,7 +8,7 @@ import { adminService } from './admin.service';
 
 export const adminRouter = Router();
 
-adminRouter.use(requireAdminKey);
+adminRouter.use(requireAdmin);
 
 adminRouter.get(
   '/users',
